@@ -1,0 +1,2099 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="书架">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4efe6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1d1b18" media="(prefers-color-scheme: dark)">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-180.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>虚拟书架</title>
+<style>
+:root {
+  --bg: #f4efe6; --fg: #2b2620; --muted: #82786b; --card: #fffdf9; --line: #e2d9ca; --chip: #ebe3d5;
+  --accent: #b5552f; --hl: #ffb020; --warn-bg: #f6dcc8; --warn-fg: #8a3a12;
+  --wall: #ece4d6; --wood: #b88a5c; --wood-hi: #d3a676; --wood-back: #6b4a2f; --floor: #9c7a58;
+  --shadow: 0 10px 30px rgba(40, 30, 20, .18);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1d1b18; --fg: #ece6dc; --muted: #a39a8c; --card: #2a2622; --line: #3d372f; --chip: #36312a;
+    --warn-bg: #4a2a1a; --warn-fg: #f3b58c;
+    --wall: #26231f; --wood: #8d6744; --wood-hi: #a87f57; --wood-back: #3c2a1b; --floor: #5a4632;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .5);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden;
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  -webkit-text-size-adjust: 100%; touch-action: manipulation;
+}
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+#stage, #results, #details, #legend, dialog { -webkit-tap-highlight-color: transparent; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+.link { border: 0; padding: 0; background: none; color: var(--accent); text-decoration: underline; font-size: inherit; }
+
+/* ---------- 顶栏 ---------- */
+#bar {
+  flex: none; display: flex; align-items: center; gap: 8px; position: relative; z-index: 20;
+  padding: 8px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--line); background: var(--bg);
+}
+#bar .brand { font-weight: 650; font-size: 16px; white-space: nowrap; }
+#searchWrap { position: relative; flex: 1; min-width: 0; max-width: 560px; }
+#q {
+  width: 100%; height: 36px; padding: 0 34px 0 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--card); font-size: 16px; outline: none; -webkit-appearance: none; appearance: none;
+}
+#q:focus { border-color: var(--accent); }
+.qclear {
+  position: absolute; right: 4px; top: 4px; width: 28px; height: 28px; border: 0; border-radius: 14px;
+  background: none; color: var(--muted); font-size: 13px;
+}
+.btn {
+  height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card);
+  white-space: nowrap; flex: none;
+}
+.btn.sm { height: 30px; padding: 0 10px; border-radius: 8px; font-size: 13px; }
+.btn.wide { width: 100%; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { color: #b3261e; }
+.btn.on { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+.btn:disabled { opacity: .45; cursor: default; }
+#btnSync b {
+  display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--chip);
+  font-size: 12px; line-height: 18px; text-align: center; font-weight: 600;
+}
+#btnSync.has b { background: var(--accent); color: #fff; }
+@media (max-width: 640px) { #bar .brand { display: none; } .btn { padding: 0 9px; } #bar { gap: 6px; } }
+
+/* ---------- 搜索结果 ---------- */
+#results {
+  position: absolute; top: 42px; left: 0; right: 0; max-height: min(60vh, 480px); overflow: auto; z-index: 30;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+}
+@media (max-width: 640px) {
+  #results { right: auto; width: calc(100vw - max(12px, env(safe-area-inset-left)) - max(12px, env(safe-area-inset-right))); }
+}
+#results .rh { padding: 8px 12px 4px; font-size: 12px; color: var(--muted); }
+#results .r { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); cursor: pointer; }
+#results .r.act, #results .r:hover { background: var(--chip); }
+#results .sw { width: 6px; align-self: stretch; border-radius: 3px; flex: none; }
+#results .tx { flex: 1; min-width: 0; }
+#results .tt, #results .au { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#results .tt { font-weight: 600; }
+#results .tt small { font-weight: 400; color: var(--muted); }
+#results .au { color: var(--muted); font-size: 12px; }
+#results .none { padding: 14px 12px; color: var(--muted); }
+#results .none .btn { margin-top: 8px; }
+.loc {
+  flex: none; display: inline-block; font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 5px 7px; border-radius: 6px; background: var(--chip); white-space: nowrap;
+}
+.loc.acc { background: var(--accent); color: #fff; }
+.loc.warn { background: var(--warn-bg); color: var(--warn-fg); }
+
+/* ---------- 分类图例、提示条 ---------- */
+#legend {
+  flex: none; display: flex; gap: 6px; overflow-x: auto; padding: 6px max(12px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--line); scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+#legend::-webkit-scrollbar { display: none; }
+#legend:empty { display: none; }
+.chip {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  border-radius: 14px; border: 1px solid var(--line); background: var(--card); font-size: 12.5px; white-space: nowrap;
+}
+.chip i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); }
+.chip small { color: var(--muted); }
+.chip.on { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
+.chip.clear { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+#hint {
+  flex: none; display: flex; align-items: center; gap: 10px; padding: 8px max(12px, env(safe-area-inset-left));
+  background: var(--warn-bg); color: var(--warn-fg); font-size: 12.5px; border-bottom: 1px solid var(--line);
+}
+#hint span { flex: 1; }
+
+/* ---------- 书架画布 ---------- */
+#main { position: relative; flex: 1; min-height: 0; }
+#stage {
+  position: absolute; inset: 0; overflow: auto; display: flex; background: var(--wall);
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-x pan-y;
+  -webkit-user-select: none; user-select: none;
+}
+body.panning #stage { cursor: grabbing; }
+#sizer { position: relative; margin: auto; flex: none; }
+#case { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.floor { position: absolute; background: var(--floor); border-radius: 2px; }
+.colname {
+  position: absolute; text-align: center; font: 700 72px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--fg); opacity: .13; pointer-events: none;
+}
+.cab {
+  position: absolute; background: var(--wood); border-radius: 3px;
+  box-shadow: 0 6px 16px rgba(40, 25, 10, .25), inset 0 2px 0 var(--wood-hi);
+}
+.shelf { position: absolute; }
+.shelf .inner {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 18px; background: var(--wood-back);
+  box-shadow: inset 0 12px 16px -10px rgba(0, 0, 0, .6), inset 8px 0 12px -10px rgba(0, 0, 0, .5), inset -8px 0 12px -10px rgba(0, 0, 0, .5);
+}
+.shelf .board {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 18px; display: flex; align-items: center; gap: 6px;
+  padding: 0 8px; background: var(--wood); box-shadow: inset 0 2px 0 var(--wood-hi);
+}
+.shelf.top .inner, .shelf.top .board { background: none; box-shadow: none; }
+.shelf.top.empty .plate { display: none; }
+body.editing .shelf.top.empty .plate { display: block; }
+.shelf.drop .inner { outline: 2px dashed var(--hl); outline-offset: -3px; }
+.shelf.top.drop .inner { outline-offset: 0; border-radius: 4px; }
+.plate {
+  font: 650 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; color: #4a3826;
+  background: #f1e6cf; padding: 2px 6px; border-radius: 2px; box-shadow: 0 1px 0 rgba(0, 0, 0, .2); white-space: nowrap;
+}
+.reord {
+  display: none; border: 0; border-radius: 2px; background: var(--hl); color: #3a2a10;
+  font: 650 11px/1 -apple-system, sans-serif; padding: 2px 6px;
+}
+body.editing .reord { display: block; }
+.books { position: absolute; left: 6px; right: 6px; top: 0; bottom: 0; display: flex; align-items: flex-end; gap: 1px; }
+
+/* ---------- 书脊 ---------- */
+.spine {
+  position: relative; flex: none; display: flex; flex-direction: column; justify-content: center;
+  writing-mode: vertical-rl; text-orientation: mixed; padding: 10px 0; overflow: hidden;
+  border-radius: 2px 2px 1px 1px; background-color: var(--c);
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 28%, rgba(0, 0, 0, 0) 72%, rgba(0, 0, 0, .24));
+  box-shadow: inset 0 9px 0 -7px rgba(255, 255, 255, .28), inset 0 -11px 0 -8px rgba(255, 255, 255, .22), 1px 0 1px rgba(0, 0, 0, .3);
+  font: 500 12px/1.15 "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  transition: opacity .2s, filter .2s, transform .18s;
+}
+.spine span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.spine .a { font-size: 9.5px; opacity: .85; margin-block-start: 2px; }
+.spine.thin { font-size: 10px; padding: 8px 0; }
+.spine.pending::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 7px;
+  background: repeating-linear-gradient(135deg, var(--accent) 0 3px, #ffd27a 3px 6px);
+}
+.spine.loaned { opacity: .45; outline: 1px dashed currentColor; outline-offset: -2px; }
+#case.dim .spine:not(.match) { opacity: .13; filter: saturate(.3); }
+#case.dim .spine.match { box-shadow: 0 0 0 2px var(--hl), 1px 0 1px rgba(0, 0, 0, .3); }
+.spine.sel { transform: translateY(-10px); box-shadow: 0 0 0 2px var(--hl), 0 8px 14px rgba(0, 0, 0, .45); z-index: 3; }
+.spine.flash { animation: pull .9s ease-in-out 3; z-index: 4; }
+#case.dim .spine.sel:not(.match), #case.dim .spine.flash:not(.match) { opacity: 1; filter: none; }
+@keyframes pull {
+  0%, 100% { transform: translateY(-10px); }
+  50% { transform: translateY(-20px); box-shadow: 0 0 0 3px var(--hl), 0 0 24px 8px var(--hl); }
+}
+body.editing .spine { cursor: grab; }
+@media (hover: hover) { body.editing .spine:not(.lift):hover { transform: translateY(-4px); } }
+.spine.lift { opacity: .25; }
+#ghost {
+  position: fixed; left: 0; top: 0; z-index: 100; pointer-events: none; transform-origin: 0 0;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, .35); transition: none;
+}
+.marker {
+  position: absolute; width: 4px; border-radius: 2px; background: var(--hl); box-shadow: 0 0 8px var(--hl);
+  pointer-events: none; z-index: 5;
+}
+
+/* ---------- 未上架 ---------- */
+.tray {
+  position: absolute; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 10px;
+  padding: 40px 16px 14px; border: 2px dashed rgba(140, 105, 70, .5); border-radius: 12px;
+}
+.tray h3 { position: absolute; left: 16px; top: 10px; margin: 0; font-size: 14px; font-weight: 650; }
+.tray h3 small { font-weight: 400; color: var(--muted); margin-left: 8px; font-size: 12px; }
+.titem { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.titem .tag {
+  font: 600 10px/1 ui-monospace, Menlo, monospace; color: var(--warn-fg); background: var(--warn-bg);
+  padding: 3px 5px; border-radius: 4px; white-space: nowrap;
+}
+
+/* ---------- 浮动控件 ---------- */
+#zoom {
+  position: absolute; z-index: 10; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+}
+#zoom button { border: 0; background: none; height: 40px; min-width: 44px; padding: 0 10px; font-size: 18px; }
+#zoom button + button { border-left: 1px solid var(--line); }
+#zoom #zFit { font-size: 13px; }
+#editBar {
+  position: absolute; z-index: 12; left: 50%; top: 12px; transform: translateX(-50%); display: none; align-items: center; gap: 10px;
+  padding: 6px 6px 6px 14px; border-radius: 20px; background: var(--fg); color: var(--bg); box-shadow: var(--shadow);
+  font-size: 13px; white-space: nowrap; max-width: calc(100% - 24px);
+}
+body.editing #editBar { display: flex; }
+#editBar span { overflow: hidden; text-overflow: ellipsis; }
+#editBar button { flex: none; border: 0; border-radius: 14px; height: 28px; padding: 0 14px; background: var(--accent); color: #fff; }
+#empty { position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: none; }
+#empty .card {
+  pointer-events: auto; max-width: 420px; padding: 24px; border-radius: 16px; text-align: center;
+  background: var(--card); box-shadow: var(--shadow);
+}
+#empty h2 { margin: 0 0 8px; font-size: 18px; }
+#empty p { margin: 8px 0 16px; }
+#empty .acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+#empty #emptyIOS { text-align: left; padding: 10px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn-fg); }
+
+/* ---------- 详情 ---------- */
+#details {
+  position: absolute; z-index: 15; right: max(12px, env(safe-area-inset-right)); top: 12px; width: 340px; max-height: calc(100% - 24px);
+  display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+#details .x { position: absolute; right: 8px; top: 8px; z-index: 1; }
+#dBody { overflow: auto; padding: 16px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+@media (max-width: 700px) {
+  #details {
+    left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 55%; border-radius: 16px 16px 0 0; border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+.x {
+  width: 30px; height: 30px; border: 0; border-radius: 15px; background: var(--chip); color: var(--muted); font-size: 13px; flex: none;
+}
+.dtop { display: flex; gap: 12px; padding-right: 30px; }
+.cover { width: 72px; flex: none; align-self: flex-start; border-radius: 4px; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); background: var(--chip); }
+.cover.ph { height: 100px; background: var(--c); }
+.dt h2 { margin: 0; font-size: 17px; line-height: 1.3; }
+.dt .sub { margin-top: 2px; color: var(--muted); }
+.dt .au { margin-top: 6px; font-size: 13px; }
+.where { display: flex; gap: 12px; align-items: center; margin: 16px 0 0; padding: 12px; border-radius: 12px; background: var(--chip); }
+.where .loc { font-size: 18px; padding: 8px 10px; border-radius: 8px; background: var(--fg); color: var(--bg); }
+.where .loc.warn { background: var(--warn-bg); color: var(--warn-fg); }
+.where b { font-size: 15px; }
+.pend { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; }
+.pend .btn { margin-top: 8px; }
+.mv { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13px; }
+.mv select { flex: 1; min-width: 0; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); padding: 0 6px; font-size: 16px; }
+.meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 16px 0 0; font-size: 13px; }
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; overflow-wrap: anywhere; }
+.notes { margin-top: 12px; font-size: 13px; }
+.notes p, .sum p { margin: 4px 0 0; white-space: pre-wrap; }
+.sum { margin-top: 12px; font-size: 13px; }
+.sum summary { cursor: pointer; color: var(--muted); }
+
+/* ---------- 弹窗 ---------- */
+dialog {
+  border: 0; padding: 0; width: min(480px, calc(100% - 24px)); max-height: min(85vh, 760px);
+  background: var(--card); color: var(--fg); border-radius: 16px; box-shadow: var(--shadow);
+}
+dialog[open] { display: flex; flex-direction: column; }
+dialog::backdrop { background: rgba(20, 15, 10, .35); }
+.dh { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 8px; }
+.dh h2 { margin: 0; font-size: 17px; }
+.db { overflow: auto; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
+.df { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); }
+.df .sp { flex: 1; }
+@media (max-width: 640px) {
+  dialog { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+}
+dialog section + section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+dialog h3 { margin: 0 0 6px; font-size: 14px; }
+dialog p { margin: 6px 0 10px; }
+.field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.field select { height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); padding: 0 6px; font-size: 16px; max-width: 62%; }
+.row2 { display: flex; gap: 8px; }
+.row2 .btn { flex: 1; }
+.help { margin: 0; padding-left: 18px; font-size: 13px; }
+.help li + li { margin-top: 6px; }
+.slist { list-style: none; margin: 0; padding: 0; }
+.slist li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.slist .tx { flex: 1 1 160px; min-width: 0; }
+.slist .tt { font-weight: 600; }
+.slist .au { font-size: 12px; color: var(--muted); }
+.slist .bad { font-size: 12px; color: var(--warn-fg); }
+.slist .chg { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.slist .acts { display: flex; gap: 6px; }
+.slist .none { justify-content: center; color: var(--muted); padding: 24px 0; }
+.slist .colhd { padding: 4px 0; border-top: 0; font-size: 12px; color: var(--muted); justify-content: flex-end; }
+.inp { display: flex; flex-direction: column; gap: 4px; margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+.inp input {
+  height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  font: 16px/1 ui-monospace, SFMono-Regular, Menlo, monospace; -webkit-appearance: none; appearance: none;
+}
+.err { margin: 12px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; }
+.steps { margin: 6px 0 0; padding-left: 20px; }
+.steps li + li { margin-top: 4px; }
+dialog details summary { cursor: pointer; color: var(--accent); }
+#btnMenu { position: relative; }
+#btnMenu.warn::after { content: ""; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 4px; background: #d23b2b; }
+
+/* ---------- 提示 ---------- */
+#toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 200;
+  width: max-content; max-width: min(560px, calc(100% - 32px)); white-space: pre-line;
+  padding: 10px 16px; border-radius: 12px; background: var(--fg); color: var(--bg); box-shadow: var(--shadow); font-size: 13.5px;
+  opacity: 0; transform: translate(-50%, 20px); transition: opacity .25s, transform .25s; pointer-events: none;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#dropHint {
+  position: fixed; inset: 12px; z-index: 300; display: none; align-items: center; justify-content: center;
+  border: 3px dashed var(--accent); border-radius: 20px; background: rgba(244, 239, 230, .85); font-size: 20px; font-weight: 600;
+  color: var(--accent); pointer-events: none;
+}
+body.filedrag #dropHint { display: flex; }
+</style>
+</head>
+<body>
+<header id="bar">
+  <div class="brand">虚拟书架</div>
+  <div id="searchWrap">
+    <input id="q" type="text" inputmode="search" enterkeyhint="search" placeholder="搜索书名、作者…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <button id="qClear" class="qclear" aria-label="清除搜索" hidden>✕</button>
+    <div id="results" hidden></div>
+  </div>
+  <button id="btnEdit" class="btn">整理</button>
+  <button id="btnSync" class="btn">待同步 <b id="syncN">0</b></button>
+  <button id="btnMenu" class="btn" aria-label="设置">⋯</button>
+</header>
+<nav id="legend"></nav>
+<div id="hint" hidden><span id="hintText"></span><button class="btn sm" id="hintOk">知道了</button></div>
+<main id="main">
+  <div id="stage"><div id="sizer"><div id="case"></div></div></div>
+  <div id="editBar"><span id="editText">整理模式：拖动书脊换位置</span><button id="editDone">完成</button></div>
+  <div id="zoom"><button id="zOut" aria-label="缩小">−</button><button id="zFit">看全部</button><button id="zIn" aria-label="放大">+</button></div>
+  <div id="empty" hidden>
+    <div class="card">
+      <h2>先导入你的书目</h2>
+      <p>在 BookBuddy 里把书库导出成 CSV 文件，然后在这里导入。</p>
+      <p id="emptyIOS" class="small" hidden></p>
+      <div class="acts"><button class="btn primary" id="emptyImport">导入 BookBuddy CSV</button><button class="btn" id="emptyCloud">从其他设备同步</button></div>
+      <p class="muted small">在 Mac 上也可以直接把 CSV 文件拖进这个窗口。<br>数据保存在这台设备的浏览器里；开启多设备同步后，会另存一份到你自己的 GitHub 私有仓库。</p>
+    </div>
+  </div>
+  <aside id="details" hidden>
+    <button class="x" data-act="close" aria-label="关闭">✕</button>
+    <div id="dBody"></div>
+  </aside>
+</main>
+
+<dialog id="dlgSync">
+  <div class="dh"><h2>待同步到 BookBuddy</h2><button class="x" data-close aria-label="关闭">✕</button></div>
+  <div class="db">
+    <p class="muted small">这些书在虚拟书架上换了位置，但 BookBuddy 里的 Physical Location 还是旧的。请在 BookBuddy 里照着改，改完重新导出 CSV 再导入，对应的条目会自动消掉。</p>
+    <p class="small" id="syncBackup" hidden>这个清单只保存在这台设备上，建议<button class="link" id="syncBackupBtn">导出一份备份</button>。</p>
+    <ul id="syncList" class="slist"></ul>
+  </div>
+  <div class="df"><button class="btn" id="syncImport">导入新的 CSV</button><span class="sp"></span><button class="btn" id="syncCopy">复制清单</button><button class="btn primary" data-close>好</button></div>
+</dialog>
+
+<dialog id="dlgMenu">
+  <div class="dh"><h2>设置</h2><button class="x" data-close aria-label="关闭">✕</button></div>
+  <div class="db">
+    <section>
+      <button class="btn primary wide" id="mImport">导入 BookBuddy CSV</button>
+      <p class="muted small" id="mMeta"></p>
+    </section>
+    <section>
+      <h3>多设备同步</h3>
+      <p class="muted small" id="mSyncStatus"></p>
+      <div class="row2" id="mSyncOff"><button class="btn" id="mSyncSetup">设置同步…</button></div>
+      <div class="row2" id="mSyncOn" hidden><button class="btn" id="mSyncNow">立即同步</button><button class="btn" id="mSyncCode">复制同步码</button><button class="btn danger" id="mSyncStop">停止同步</button></div>
+    </section>
+    <section>
+      <label class="field"><span>层内自动排序</span>
+        <select id="mSort">
+          <option value="genre">按分类（同系列放一起）</option>
+          <option value="title">按书名</option>
+          <option value="author">按作者</option>
+          <option value="added">按加入 BookBuddy 的时间</option>
+        </select>
+      </label>
+      <p class="muted small">在整理模式里手动拖过顺序的层，会保持你排好的顺序。</p>
+      <button class="btn wide" id="mResetOrders">清除所有手动排序</button>
+    </section>
+    <section>
+      <h3>换设备 / 备份</h3>
+      <p class="muted small">导出一个备份文件，可以留作存档，或者在另一台设备上恢复。没开同步的话，书目、手动排序和待同步清单都只保存在这台设备上。</p>
+      <div class="row2"><button class="btn" id="mBackup">导出备份</button><button class="btn" id="mRestore">从备份恢复</button></div>
+    </section>
+    <section>
+      <h3>使用说明</h3>
+      <ul class="help">
+        <li><b>位置怎么写：</b>书柜字母加层号，层号从下往上数，比如 A3、B5、C6。A7、C7 是柜顶上。</li>
+        <li><b>更新书目：</b>在 BookBuddy 里改好后重新导出 CSV 再导入。手动排序和待同步清单都会保留。</li>
+        <li><b>找书：</b>可以搜书名、作者、系列或 ISBN，简体繁体都能搜到。点搜索结果会跳到那本书。点上方的分类可以只看某一类。</li>
+        <li><b>层内顺序：</b>BookBuddy 只记到层，所以同一层里的顺序是自动排的，不一定和实际摆放一样。想让它一致，可以在整理模式里按实际顺序拖一遍。</li>
+        <li><b>缩放：</b>双指捏合，或者用右下角的按钮。Mac 触控板也能捏合，或者按住 ⌘ 滚动。</li>
+        <li><b>整理：</b>点「整理」后可以拖动书脊（手机和 iPad 上要先按住书脊一下再拖）。同一层里换顺序只记在本机；拖到别的层会加进「待同步」清单。</li>
+        <li><b>未上架：</b>位置为空、或者书架上没有这个位置的书，放在书架下方的「未上架」区。</li>
+        <li><b>多设备同步：</b>开启后，在一台设备上导入、整理、移动的结果，会自动出现在其它设备上。数据存在你自己的 GitHub 私有仓库里。</li>
+        <li><b>iPhone / iPad：</b>建议在 Safari 里点分享 →「添加到主屏幕」，以后从主屏幕打开。Safari 里的网站数据 7 天不打开可能会被清掉，主屏幕上的不会；两边的数据也不互通。</li>
+      </ul>
+    </section>
+    <section>
+      <button class="btn danger wide" id="mClear">清空这台设备上的数据</button>
+    </section>
+  </div>
+</dialog>
+
+<dialog id="dlgCloud">
+  <div class="dh"><h2>设置多设备同步</h2><button class="x" data-close aria-label="关闭">✕</button></div>
+  <div class="db">
+    <p class="muted small">书目、层内排序和待同步清单会保存在你自己的 GitHub 私有仓库里，每台设备打开时自动同步。</p>
+    <p class="small"><b>已经在别的设备上设置过：</b>在那台设备上点「⋯ → 复制同步码」，粘贴到下面任意一个框里。</p>
+    <details class="small">
+      <summary>第一次设置的步骤</summary>
+      <ol class="steps">
+        <li>在 GitHub 上新建一个仓库，比如叫 <b>bookshelf-data</b>，选 <b>Private</b>，并勾上「Add a README file」。</li>
+        <li>打开 GitHub 的 Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token。</li>
+        <li>Repository access 选 <b>Only select repositories</b>，只选刚建的仓库；Permissions 里把 <b>Contents</b> 设成 <b>Read and write</b>。</li>
+        <li>生成后复制令牌（github_pat_ 开头），和仓库名一起填到下面。</li>
+      </ol>
+    </details>
+    <label class="inp">仓库<input id="cRepo" placeholder="你的用户名/bookshelf-data" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    <label class="inp">访问令牌<input id="cToken" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    <p class="err" id="cErr" hidden></p>
+  </div>
+  <div class="df"><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn primary" id="cConnect">连接</button></div>
+</dialog>
+
+<input type="file" id="fileIn" accept=".csv,.json,text/csv,application/json" hidden>
+<div id="toast" role="status"></div>
+<div id="dropHint">松开即可导入 CSV</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ================================================================
+ * 书架布局 —— 按家里的实际情况改这里
+ *   id       书柜字母
+ *   width    书柜宽度（相对值，A 和 C 是 1）
+ *   shelves  每一层的 [离地高度, 层高]，单位是「A/C 的一层」。
+ *            只写一个数字表示层高为 1。编号从下往上：最低的是第 1 层。
+ *   top      柜顶上能不能放书。能的话编号是「层数 + 1」，比如 A7。
+ * ================================================================ */
+const LAYOUT = [
+  { id: 'A', width: 1, shelves: [0, 1, 2, 3, 4, 5], top: true },
+  // B1–B4 是下面的四个小格；B5 的底板和 A4 齐平；B6 从 A5 一半的高度开始；柜顶和 A、C 齐平
+  { id: 'B', width: 0.5, shelves: [[0, 0.75], [0.75, 0.75], [1.5, 0.75], [2.25, 0.75], [3, 1.5], [4.5, 1.5]] },
+  { id: 'C', width: 1, shelves: [0, 1, 2, 3, 4, 5], top: true },
+];
+
+const U = 150;      // 一层的高度（缩放前，像素）
+const BT = 18;      // 隔板厚度
+const ST = 12;      // 书柜侧板厚度
+const PAD = 6;      // 书和侧板之间的空隙
+const GAP = 16;     // 书柜之间的空隙
+const M = 32;       // 画面四周留白
+const FLOOR = 8;
+const ZMIN = 0.08, ZMAX = 3;
+const HOLD_MS = 350;   // 触屏上按住多久才能拖书
+const STORE_KEY = 'vshelf.v1';
+const LOCAL_KEY = 'vshelf.local';        // 只属于这台设备的设置（同步令牌、提示有没有看过），不同步、不进备份
+const GH_API = 'https://api.github.com';
+const SYNC_FILE = 'bookshelf.json';
+const PUSH_DELAY = 2500;                 // 改完之后等多久再上传（连续拖好几本书时只传一次）
+const DERIVED = new Set(['_w', '_h', '_s', '_loc', '_x']);
+const BOOK_FIELDS = ['k', 'title', 'subtitle', 'series', 'volume', 'author', 'authorSort', 'translator', 'editor', 'publisher',
+  'year', 'genre', 'pages', 'lang', 'isbn', 'loc', 'added', 'img', 'notes', 'summary', 'loaned'];
+const SORTS = ['genre', 'title', 'author', 'added'];
+
+const PALETTE = [
+  '#8c2f39', '#2f5d8a', '#3d7a4f', '#c08a2e', '#5b4a8a', '#25716c', '#b5552f', '#6b4f3a', '#3e4a5c', '#a3476b',
+  '#8fa04a', '#d6bb8f', '#3f74a6', '#86579a', '#e5d5ae', '#1f4a3d', '#d88a8a', '#5f6f73', '#8a6d1f', '#2b2b33',
+];
+const DARK_TEXT = '#2b2118', LIGHT_TEXT = '#fbf6ec';
+const GENRE_ZH = {
+  'Fiction': '小说', 'Science & Technology': '科学技术', 'Music': '音乐', 'Philosophy & Sociology': '哲学与社会',
+  'Biography & Memoir': '传记回忆录', 'Lifestyle': '生活', 'Art': '艺术', 'Medical': '医学', 'Audio & Video': '音像',
+  'Games & Activities': '游戏活动', 'Language': '语言', 'Religion': '宗教', 'Law': '法律', 'Psychology': '心理学',
+  'Business & Economics': '商业经济', 'Travel': '旅行', 'Nature': '自然', 'History': '历史', 'Poetry': '诗歌',
+  'Cooking': '烹饪', 'Comics & Graphic Novels': '漫画', 'Education': '教育', 'Reference': '工具书', 'Health & Fitness': '健康',
+  'Computers': '计算机', 'Mathematics': '数学', 'Political Science': '政治', 'Social Science': '社会科学', 'Self-Help': '自我提升',
+  'Sports & Recreation': '运动', 'Drama': '戏剧', 'Literary Criticism': '文学评论', 'Juvenile Fiction': '少儿小说',
+  'Juvenile Nonfiction': '少儿读物', 'Crafts & Hobbies': '手工爱好', 'Design': '设计', 'Photography': '摄影',
+  'Architecture': '建筑', 'Humor': '幽默', 'Family & Relationships': '家庭关系', 'Gardening': '园艺', 'Pets': '宠物',
+  'House & Home': '家居', 'True Crime': '真实罪案', 'Performing Arts': '表演艺术', 'Foreign Language Study': '外语学习',
+  'Literary Collections': '文学选集', 'Body, Mind & Spirit': '身心灵', 'Transportation': '交通', 'Antiques & Collectibles': '收藏',
+};
+const LANG_ZH = {
+  Chinese: '中文', English: '英文', Japanese: '日文', Korean: '韩文', French: '法文', German: '德文',
+  Spanish: '西班牙文', Italian: '意大利文', Russian: '俄文', Portuguese: '葡萄牙文', Latin: '拉丁文',
+};
+
+// 繁体 → 简体对照（搜索时不分简繁），由 macOS 的 Hant-Hans 转换表生成
+const T2S_PAIRS = '㑳㑇㘚㘎㠏㟆㥮㤘㩜㨫㩳㧐䃮鿎䊷䌶䋙䌺䋻䌾䝼䞍䥑鿏䬗扬䯀䯅䰾鲃䱽䲝䲁鳚䲘鳤䴉鹮䶧咬丟丢並并乾干亂乱亙亘亞亚佇伫佈布佔占併并來来侖仑侶侣侷局俁俣係系俔伣俠侠俬私俱具倀伥倆俩倈俫倉仓個个們们倖幸倣仿倫伦偉伟側侧偵侦偽伪傑杰傖伧傘伞備备傢家傭佣傯偬傳传傴伛債债傷伤傾倾僂偻僅仅僇戮僉佥僑侨僕仆僞伪僥侥僨偾僱雇價价儀仪儂侬億亿儈侩儉俭儐傧儔俦儕侪儘尽償偿優优儲储儷俪儸㑩儺傩儻傥儼俨兇凶兌兑兒儿兗兖內内兩两冊册冪幂凈净凍冻凜凛凱凯別别刪删剄刭則则剋克剎刹剗刬剛刚剝剥剮剐剴剀創创剷铲劃划劇剧劉刘劊刽劌刿劍剑劏㓥劑剂劚㔉勁劲動动勗勖務务勛勋勝胜勞劳勢势勩勚勱劢勳勋勵励勸劝勻匀匭匦匯汇匱匮區区協协卹恤卻却厙厍厠厕厭厌厲厉厴厣參参叄叁叢丛吒咤吢吣吳吴吶呐呂吕咷啕咼呙員员唄呗唚吣唸念問问啓启啞哑啟启啢唡喎㖞喚唤喨亮喪丧喫吃喬乔單单喲哟嗆呛嗇啬嗊唝嗎吗嗚呜嗩唢嗶哔嘆叹嘍喽嘔呕嘖啧嘗尝嘜唛嘩哗嘮唠嘯啸嘰叽嘵哓嘸呒嘽啴噓嘘噚㖊噝咝噠哒噥哝噦哕噯嗳噲哙噴喷噸吨噹当嚀咛嚇吓嚌哜嚐尝嚕噜嚙啮嚥咽嚦呖嚨咙嚮向嚲亸嚳喾嚴严嚶嘤囀啭囁嗫囂嚣囅冁囈呓囉啰囍禧囑嘱囓啮囪囱圇囵國国圍围園园圓圆圖图團团垵埯埡垭埰采執执堅坚堊垩堖垴堝埚堯尧報报場场塊块塋茔塏垲塒埘塗涂塚冢塢坞塤埙塵尘塹堑墊垫墜坠墮堕墳坟墶垯墻墙墾垦壇坛壋垱壎埙壓压壘垒壙圹壚垆壜坛壞坏壟垄壠垅壢坜壩坝壪塆壯壮壺壶壼壸壽寿夠够夢梦夥伙夾夹奐奂奧奥奩奁奪夺奬奖奮奋奼姹妝妆姊姐姍姗姦奸姪侄娛娱婁娄婦妇婭娅媧娲媯妫媼媪媽妈嫋袅嫗妪嫵妩嫻娴嫿婳嬀妫嬃媭嬈娆嬋婵嬌娇嬙嫱嬝袅嬡嫒嬤嬷嬪嫔嬰婴嬸婶孃娘孌娈孫孙學学孿孪宮宫寢寝實实寧宁審审寫写寬宽寵宠寶宝尅克將将專专尋寻對对導导尷尴屆届屍尸屓屃屜屉屢屡層层屨屦屬属岡冈峴岘島岛峽峡崍崃崑昆崗岗崙仑崢峥崬岽嵐岚嶁嵝嶄崭嶇岖嶔嵚嶗崂嶠峤嶢峣嶧峄嶨峃嶮崄嶴岙嶸嵘嶺岭嶼屿巋岿巒峦巔巅巖岩巰巯帥帅師师帳帐帶带幀帧幃帏幗帼幘帻幟帜幣币幫帮幬帱幹干幾几庫库廁厕廂厢廄厩廈厦廎庼廚厨廝厮廟庙廠厂廡庑廢废廣广廩廪廬庐廳厅廻回弒弑弔吊弳弪張张強强彆别彈弹彌弥彎弯彙汇彞彝彠彟彥彦彿佛後后徑径從从徠徕復复徬彷徵征徹彻恆恒恥耻悅悦悞悮悳德悵怅悶闷悽凄惡恶惱恼惲恽惻恻愛爱愜惬愨悫愴怆愷恺愾忾慄栗慇殷態态慍愠慘惨慚惭慟恸慣惯慤悫慪怄慫怂慮虑慳悭慶庆慼戚慾欲憂忧憊惫憐怜憑凭憒愦憖慭憚惮憤愤憫悯憮怃憲宪憶忆懃勤懇恳應应懌怿懍懔懞蒙懟怼懣懑懨恹懮忧懲惩懶懒懷怀懸悬懺忏懼惧懾慑戀恋戇戆戔戋戧戗戩戬戰战戱戯戲戏戶户拋抛挩捝挾挟捨舍捫扪捲卷掃扫掄抡掗挜掙挣掛挂採采揀拣揚扬換换揮挥搆构損损搖摇搗捣搥捶搧扇搨拓搵揾搶抢搾榨摀捂摑掴摜掼摟搂摯挚摳抠摶抟摺折摻掺撈捞撏挦撐撑撓挠撚捻撝㧑撟挢撢掸撣掸撥拨撫抚撲扑撳揿撻挞撾挝撿捡擁拥擄掳擇择擊击擋挡擓㧟擔担據据擠挤擣捣擬拟擯摈擰拧擱搁擲掷擴扩擷撷擺摆擻擞擼撸擾扰攄摅攆撵攏拢攔拦攖撄攙搀攛撺攜携攝摄攢攒攣挛攤摊攪搅攬揽敗败敘叙敵敌數数斂敛斃毙斆敩斕斓斬斩斷断於于昇升時时晉晋晝昼暈晕暉晖暘旸暢畅暫暂暱昵曄晔曆历曇昙曉晓曏向曖暧曠旷曨昽曬晒書书會会朧胧東东枒丫柵栅桿杆梔栀梘枧條条梟枭梲棁棄弃棖枨棗枣棟栋棡㭎棧栈棲栖棶梾椏桠楊杨楓枫楨桢業业極极榖谷榪杩榮荣榲榅榿桤構构槍枪槓杠槖橐槤梿槧椠槨椁槳桨樁桩樂乐樅枞樑梁樓楼標标樞枢樣样樸朴樹树樺桦橈桡橋桥機机橢椭橫横檁檩檉柽檔档檜桧檝楫檟槚檢检檣樯檮梼檯台檳槟檸柠檻槛櫃柜櫓橹櫚榈櫛栉櫝椟櫞橼櫟栎櫥橱櫧槠櫨栌櫪枥櫫橥櫬榇櫱蘖櫳栊櫸榉櫺棂櫻樱欄栏權权欏椤欒栾欖榄欞棂欵款欽钦歎叹歐欧歛敛歟欤歡欢歲岁歷历歸归歿殁殘残殞殒殤殇殨㱮殫殚殮殓殯殡殰㱩殲歼殺杀殼壳毀毁毆殴毬球毿毵氂牦氈毡氌氇氣气氫氢氬氩氳氲氹凼氾泛汎泛汙污決决沍冱沒没沖冲況况洩泄洶汹浹浃涇泾涼凉淒凄淚泪淥渌淨净淪沦淵渊淶涞淺浅渙涣減减渢沨渦涡測测渾浑湊凑湞浈湧涌湯汤溈沩準准溝沟溫温溮浉溳涢溼湿滄沧滅灭滌涤滎荥滬沪滯滞滲渗滷卤滸浒滻浐滾滚滿满漁渔漊溇漚沤漢汉漣涟漬渍漲涨漵溆漸渐漿浆潁颍潑泼潔洁潙沩潛潜潤润潯浔潰溃潷滗潿涠澀涩澆浇澇涝澐沄澗涧澠渑澤泽澦滪澩泶澮浍澱淀濁浊濃浓濕湿濘泞濚溁濜浕濟济濤涛濫滥濬浚濰潍濱滨濺溅濼泺濾滤瀂澛瀅滢瀆渎瀇㲿瀉泻瀋沈瀏浏瀕濒瀘泸瀝沥瀟潇瀠潆瀦潴瀧泷瀨濑瀰弥瀲潋瀾澜灃沣灄滠灑洒灕漓灘滩灝灏灠漤灣湾灤滦灧滟災灾為为烏乌烴烃無无煉炼煒炜煙烟煢茕煥焕煩烦煬炀煱㶽熅煴熒荧熗炝熱热熲颎熾炽燁烨燄焰燈灯燉炖燐磷燒烧燙烫燜焖營营燦灿燬毁燭烛燴烩燶㶶燻熏燼烬燾焘燿耀爍烁爐炉爛烂爭争爲为爺爷爾尔牀床牆墙牋笺牘牍牽牵犖荦犢犊犧牺狀状狹狭狽狈猙狰猶犹猻狲獁犸獃呆獄狱獅狮獎奖獨独獪狯獫猃獮狝獰狞獱㺍獲获獵猎獷犷獸兽獺獭獻献獼猕玀猡現现琺珐琿珲瑋玮瑒玚瑣琐瑤瑶瑩莹瑪玛瑯琅瑲玱璉琏璡琎璣玑璦瑷璫珰環环璵玙璽玺瓊琼瓏珑瓔璎瓚瓒甌瓯甕瓮產产産产畝亩畢毕畫画異异當当疇畴疊叠痀佝痙痉痠酸痾疴瘂痖瘋疯瘍疡瘓痪瘞瘗瘡疮瘧疟瘮瘆瘲疭瘺瘘瘻瘘療疗癆痨癇痫癉瘅癒愈癘疠癟瘪癡痴癢痒癤疖癥症癧疬癩癞癬癣癭瘿癮瘾癰痈癱瘫癲癫發发皁皂皚皑皰疱皸皲皺皱盃杯盜盗盞盏盡尽監监盤盘盧卢盪荡眞真眥眦眾众睏困睜睁睞睐睪睾瞇眯瞘眍瞜䁖瞞瞒瞭了瞶瞆瞼睑矓眬矚瞩矯矫砲炮硏研硜硁硤硖硨砗硯砚碩硕碭砀碸砜確确碼码磑硙磚砖磣碜磧碛磯矶磽硗磾䃅礄硚礆硷礎础礙碍礡礴礦矿礪砺礫砾礬矾礮炮礱砻祕秘祿禄禍祸禎祯禕祎禡祃禦御禪禅禮礼禰祢禱祷禿秃秈籼稅税稈秆稏䅉稜棱稟禀種种稱称穀谷穇䅟穌稣積积穎颖穠秾穡穑穢秽穩稳穫获穭稆窩窝窪洼窮穷窯窑窵窎窶窭窺窥竄窜竅窍竇窦竈灶竊窃竪竖競竞筆笔筍笋筧笕筴䇲箇个箋笺箎篪箏筝箝钳節节範范築筑篋箧篔筼篤笃篩筛篳筚簀箦簆筘簍篓簞箪簡简簣篑簫箫簷檐簹筜簽签簾帘籃篮籌筹籐藤籙箓籛篯籜箨籟籁籠笼籤签籩笾籪簖籬篱籮箩籲吁粧妆粵粤糝糁糞粪糧粮糰团糲粝糴籴糶粜糹纟糾纠紀纪紂纣約约紅红紆纡紇纥紈纨紉纫紋纹納纳紐纽紓纾純纯紕纰紖纼紗纱紘纮紙纸級级紛纷紜纭紝纴紡纺紬䌷紮扎細细紱绂紲绁紳绅紵纻紹绍紺绀紼绋紿绐絀绌終终絃弦組组絅䌹絆绊絎绗結结絕绝絛绦絝绔絞绞絡络絢绚給给絨绒絰绖統统絲丝絳绛絶绝絹绢綁绑綃绡綆绠綈绨綉绣綌绤綏绥綐䌼綑捆經经綜综綞缍綠绿綢绸綣绻綫线綬绶維维綯绹綰绾綱纲網网綳绷綴缀綵彩綸纶綹绺綺绮綻绽綽绰綾绫綿绵緄绲緇缁緊紧緋绯緑绿緒绪緓绬緔绱緗缃緘缄緙缂線线緝缉緞缎締缔緡缗緣缘緦缌編编緩缓緬缅緯纬緱缑緲缈練练緶缏緹缇緻致縈萦縉缙縊缢縋缒縐绉縑缣縕缊縗缞縛缚縝缜縞缟縟缛縣县縧绦縫缝縭缡縮缩縱纵縲缧縳䌸縴纤縵缦縶絷縷缕縹缥總总績绩繃绷繅缫繆缪繒缯織织繕缮繚缭繞绕繡绣繢缋繩绳繪绘繫系繭茧繮缰繯缳繰缲繳缴繸䍁繹绎繼继繽缤繾缱繿䍀纈缬纊纩續续纍累纏缠纓缨纔才纖纤纘缵纜缆缽钵罃䓨罈坛罌罂罎坛罣挂罰罚罵骂罷罢羅罗羆罴羈羁羋芈羣群羥羟羨羡義义羶膻習习翫玩翬翚翹翘翺翱翽翙耬耧耮耢聖圣聞闻聯联聰聪聲声聳耸聵聩聶聂職职聹聍聽听聾聋肅肃脅胁脈脉脛胫脣唇脫脱脹胀腎肾腖胨腡脶腦脑腫肿腳脚腸肠膃腽膕腘膚肤膞䏝膠胶膩腻膽胆膾脍膿脓臉脸臍脐臏膑臘腊臚胪臟脏臠脔臢臜臥卧臨临臺台與与興兴舉举舊旧舖铺艙舱艤舣艦舰艫舻艱艰艷艳芻刍苎苧苧苎茲兹荊荆荳豆莊庄莖茎莢荚莧苋菓果華华菸烟萇苌萊莱萬万萵莴葉叶葒荭著着葤荮葦苇葯药葷荤蒐搜蒓莼蒔莳蒞莅蒼苍蓀荪蓆席蓋盖蓮莲蓯苁蓽荜蔔卜蔞蒌蔣蒋蔥葱蔦茑蔭荫蔴麻蕁荨蕆蒇蕎荞蕒荬蕓芸蕕莸蕘荛蕢蒉蕩荡蕪芜蕭萧蕷蓣薀蕰薈荟薊蓟薌芗薑姜薔蔷薘荙薟莶薦荐薩萨薳䓕薴苧薺荠藉借藍蓝藎荩藝艺藥药藪薮藭䓖藴蕴藶苈藷薯藹蔼藺蔺蘀萚蘄蕲蘆芦蘇苏蘊蕴蘋苹蘚藓蘞蔹蘢茏蘭兰蘺蓠蘿萝虆蔂處处虛虚虜虏號号虧亏虯虬蛺蛱蛻蜕蜆蚬蝕蚀蝟猬蝦虾蝨虱蝸蜗螄蛳螞蚂螢萤螮䗖螻蝼螿螀蟄蛰蟈蝈蟎螨蟣虮蟬蝉蟯蛲蟲虫蟶蛏蟻蚁蠅蝇蠆虿蠍蝎蠐蛴蠑蝾蠔蚝蠟蜡蠣蛎蠧蠹蠨蟏蠱蛊蠶蚕蠻蛮衆众衊蔑術术衚胡衛卫衝冲袞衮袴绔裊袅裏里補补裝装裡里製制複复褌裈褘袆褲裤褳裢褸褛褻亵襇裥襏袯襖袄襝裣襠裆襤褴襪袜襬䙓襯衬襲袭襴襕覈核見见覎觃規规覓觅視视覘觇覡觋覥觍覦觎親亲覬觊覯觏覲觐覷觑覺觉覽览覿觌觀观觴觞觶觯觸触訁讠訂订訃讣計计訊讯訌讧討讨訐讦訒讱訓训訕讪訖讫託托記记訛讹訝讶訟讼訢䜣訣诀訥讷訩讻訪访設设許许訴诉訶诃診诊註注証证詁诂詆诋詎讵詐诈詒诒詔诏評评詖诐詗诇詘诎詛诅詞词詠咏詡诩詢询詣诣試试詩诗詫诧詬诟詭诡詮诠詰诘話话該该詳详詵诜詼诙詿诖誄诔誅诛誆诓誇夸誌志認认誑诳誒诶誕诞誘诱誚诮語语誠诚誡诫誣诬誤误誥诰誦诵誨诲說说説说誰谁課课誶谇誹诽誼谊誾訚調调諂谄諄谆談谈諉诿請请諍诤諏诹諑诼諒谅論论諗谂諛谀諜谍諝谞諞谝諡谥諢诨諤谔諦谛諧谐諫谏諭谕諮谘諱讳諳谙諶谌諷讽諸诸諺谚諼谖諾诺謀谋謁谒謂谓謄誊謅诌謊谎謎谜謐谧謔谑謖谡謗谤謙谦謚谥講讲謝谢謠谣謡谣謨谟謫谪謬谬謭谫謳讴謹谨謾谩譁哗譅䜧證证譎谲譏讥譖谮識识譙谯譚谭譜谱譟噪譫谵譯译議议譴谴護护譸诪譽誉譾谫讀读變变讋詟讌䜩讎雠讒谗讓让讕谰讖谶讚赞讜谠讞谳豈岂豎竖豐丰豔艳豬猪豶豮貍狸貓猫貙䝙貝贝貞贞貟贠負负財财貢贡貧贫貨货販贩貪贪貫贯責责貯贮貰贳貲赀貳贰貴贵貶贬買买貸贷貺贶費费貼贴貽贻貿贸賀贺賁贲賂赂賃赁賄贿賅赅資资賈贾賊贼賑赈賒赊賓宾賕赇賙赒賚赉賜赐賞赏賠赔賡赓賢贤賣卖賤贱賦赋賧赕質质賫赍賬账賭赌賰䞐賴赖賵赗賸剩賺赚賻赙購购賽赛賾赜贄贽贅赘贇赟贈赠贊赞贋赝贍赡贏赢贐赆贓赃贔赑贖赎贗赝贛赣贜赃赬赪趕赶趙赵趨趋趲趱跡迹跤交跼局踐践踡蜷踰逾踴踊蹌跄蹕跸蹟迹蹣蹒蹤踪蹧糟蹺跷躂跶躉趸躊踌躋跻躍跃躑踯躒跞躓踬躕蹰躚跹躡蹑躥蹿躦躜躪躏軀躯車车軋轧軌轨軍军軑轪軒轩軔轫軛轭軟软軤轷軫轸軲轱軸轴軹轵軺轺軻轲軼轶軾轼較较輅辂輇辁輈辀載载輊轾輒辄輓挽輔辅輕轻輛辆輜辎輝辉輞辋輟辍輥辊輦辇輩辈輪轮輬辌輯辑輳辏輸输輻辐輾辗輿舆轀辒轂毂轄辖轅辕轆辘轉转轍辙轎轿轔辚轝舆轟轰轡辔轢轹轤轳辦办辭辞辮辫辯辩農农迴回逕迳這这連连週周進进遊游運运過过達达違违遙遥遜逊遞递遠远適适遯遁遲迟遷迁選选遺遗遼辽邁迈還还邇迩邊边邏逻邐逦郟郏郵邮鄆郓鄉乡鄒邹鄔邬鄖郧鄧邓鄭郑鄰邻鄲郸鄴邺鄶郐鄺邝酇酂酈郦醃腌醖酝醜丑醞酝醫医醬酱醱酦醼宴釀酿釁衅釃酾釅酽釋释釐厘釒钅釓钆釔钇釕钌釗钊釘钉釙钋針针釣钓釤钐釦扣釧钏釩钒釵钗釷钍釹钕釺钎鈀钯鈁钫鈃钘鈄钭鈈钚鈉钠鈍钝鈎钩鈐钤鈑钣鈒钑鈔钞鈕钮鈞钧鈣钙鈥钬鈦钛鈧钪鈮铌鈰铈鈳钶鈴铃鈷钴鈸钹鈹铍鈺钰鈽钸鈾铀鈿钿鉀钾鉅钜鉈铊鉉铉鉋铇鉍铋鉑铂鉕钷鉗钳鉚铆鉛铅鉞钺鉢钵鉤钩鉦钲鉨鿭鉬钼鉭钽鉶铏鉸铰鉺铒鉻铬鉿铪銀银銃铳銅铜銍铚銑铣銓铨銖铢銘铭銚铫銛铦銜衔銠铑銣铷銥铱銦铟銨铵銩铥銪铕銫铯銬铐銱铞銲焊銳锐銷销銹锈銻锑銼锉鋁铝鋃锒鋅锌鋇钡鋌铤鋏铗鋒锋鋙铻鋝锊鋟锓鋣铘鋤锄鋥锃鋦锔鋨锇鋩铓鋪铺鋭锐鋮铖鋯锆鋰锂鋱铽鋶锍鋸锯鋼钢錁锞錄录錆锖錇锫錈锩錏铔錐锥錒锕錕锟錘锤錙锱錚铮錛锛錟锬錠锭錡锜錢钱錦锦錨锚錩锠錫锡錮锢錯错録录錳锰錶表錸铼鍀锝鍁锨鍃锪鍆钔鍇锴鍈锳鍊炼鍋锅鍍镀鍔锷鍘铡鍚钖鍛锻鍠锽鍤锸鍥锲鍩锘鍬锹鍰锾鍵键鍶锶鍺锗鍾钟鎂镁鎄锿鎇镅鎊镑鎔镕鎖锁鎗枪鎘镉鎚锤鎛镈鎡镃鎢钨鎣蓥鎦镏鎧铠鎩铩鎪锼鎬镐鎮镇鎰镒鎲镋鎳镍鎵镓鎶鿔鎸镌鎿镎鏃镞鏇镟鏈链鏌镆鏍镙鏐镠鏑镝鏗铿鏘锵鏜镗鏝镘鏞镛鏟铲鏡镜鏢镖鏤镂鏨錾鏰镚鏵铧鏷镤鏹镪鏺䥽鏽锈鐃铙鐋铴鐐镣鐒铹鐓镦鐔镡鐘钟鐙镫鐝镢鐠镨鐦锎鐧锏鐨镄鐫镌鐮镰鐯䦃鐲镯鐳镭鐵铁鐶镮鐸铎鐺铛鐿镱鑄铸鑈鿭鑊镬鑌镔鑑鉴鑒鉴鑔镲鑕锧鑞镴鑠铄鑣镳鑥镥鑭镧鑰钥鑱镵鑲镶鑷镊鑹镩鑼锣鑽钻鑾銮鑿凿钁䦆長长門门閂闩閃闪閆闫閈闬閉闭開开閌闶閎闳閏闰閑闲閒闲間间閔闵閘闸閡阂関关閣阁閥阀閧哄閨闺閩闽閫阃閬阆閭闾閱阅閲阅閶阊閹阉閻阎閼阏閽阍閾阈閿阌闃阒闆板闇暗闈闱闊阔闋阕闌阑闍阇闐阗闒阘闓闿闔阖闕阙闖闯闘斗關关闞阚闠阓闡阐闢辟闤阛闥闼阨厄阪坂陘陉陝陕陞升陣阵陰阴陳陈陸陆陽阳隄堤隉陧隊队階阶隕陨際际隨随險险隱隐隴陇隸隶隻只雋隽雖虽雙双雛雏雜杂雞鸡離离難难雲云電电霑沾霢霡霧雾霽霁靂雳靄霭靆叇靈灵靉叆靚靓靜静靦腼靨靥靷纼鞀鼗鞏巩鞝绱鞽鞒韁缰韃鞑韉鞯韋韦韌韧韍韨韓韩韙韪韜韬韞韫韮韭韻韵響响頁页頂顶頃顷項项順顺頇顸須须頊顼頌颂頎颀頏颃預预頑顽頒颁頓顿頗颇領领頜颌頡颉頤颐頦颏頭头頮颒頰颊頲颋頴颕頷颔頸颈頹颓頻频頽颓顆颗題题額额顎颚顏颜顒颙顓颛顔颜願愿顙颡顛颠類类顢颟顥颢顧顾顫颤顬颥顯显顰颦顱颅顳颞顴颧風风颭飐颮飑颯飒颱台颳刮颶飓颸飔颺飏颻飖颼飕飀飗飄飘飆飙飈飚飛飞飠饣飢饥飣饤飥饦飩饨飪饪飫饫飭饬飯饭飲饮飴饴飼饲飽饱飾饰飿饳餃饺餄饸餅饼餉饷養养餌饵餎饹餏饻餑饽餒馁餓饿餕馂餖饾餘余餚肴餛馄餜馃餞饯餡馅館馆餬糊餱糇餳饧餵喂餶馉餷馇餺馎餼饩餽馈餾馏餿馊饁馌饃馍饅馒饈馐饉馑饊馓饋馈饌馔饑饥饒饶饗飨饜餍饞馋饢馕馬马馭驭馮冯馱驮馳驰馴驯馹驲駁驳駐驻駑驽駒驹駔驵駕驾駘骀駙驸駛驶駝驼駟驷駡骂駢骈駭骇駰骃駱骆駸骎駿骏騁骋騂骍騅骓騌骔騍骒騎骑騏骐騖骛騙骗騤骙騧䯄騫骞騭骘騮骝騰腾騶驺騷骚騸骟騾骡驀蓦驁骜驂骖驃骠驄骢驅驱驊骅驌骕驍骁驏骣驕骄驗验驚惊驛驿驟骤驢驴驤骧驥骥驦骦驪骊驫骉骯肮髏髅髒脏體体髕髌髖髋髮发鬀剃鬆松鬍胡鬚须鬢鬓鬥斗鬧闹鬨哄鬩阋鬭斗鬮阄鬱郁鬹鬶魎魉魘魇魚鱼魛鱽魢鱾魨鲀魯鲁魴鲂魷鱿魺鲄鮁鲅鮃鲆鮊鲌鮋鲉鮍鲏鮎鲇鮐鲐鮑鲍鮒鲋鮓鲊鮚鲒鮜鲘鮝鲞鮞鲕鮣䲟鮦鲖鮪鲔鮫鲛鮭鲑鮮鲜鮳鲓鮶鲪鮺鲝鯀鲧鯁鲠鯇鲩鯉鲤鯊鲨鯒鲬鯔鲻鯕鲯鯖鲭鯛鲷鯝鲴鯡鲱鯢鲵鯤鲲鯧鲳鯨鲸鯪鲮鯫鲰鯰鲶鯴鲺鯷鳀鯽鲫鯿鳊鰁鳈鰂鲗鰃鳂鰆䲠鰈鲽鰉鳇鰍鳅鰏鲾鰐鳄鰒鳆鰓鳃鰜鳒鰟鳑鰠鳋鰣鲥鰥鳏鰧䲢鰨鳎鰩鳐鰭鳍鰮鳁鰱鲢鰲鳌鰳鳓鰵鳘鰷鲦鰹鲣鰺鲹鰻鳗鰼鳛鰾鳔鱂鳉鱅鳙鱈鳕鱉鳖鱒鳟鱔鳝鱖鳜鱗鳞鱘鲟鱝鲼鱟鲎鱠鲙鱣鳣鱤鳡鱧鳢鱨鲿鱭鲚鱯鳠鱷鳄鱸鲈鱺鲡鳥鸟鳧凫鳩鸠鳬凫鳲鸤鳳凤鳴鸣鳶鸢鳾䴓鴆鸩鴇鸨鴉鸦鴒鸰鴕鸵鴛鸳鴝鸲鴞鸮鴟鸱鴣鸪鴦鸯鴨鸭鴯鸸鴰鸹鴴鸻鴷䴕鴻鸿鴿鸽鵁䴔鵂鸺鵃鸼鵐鹀鵑鹃鵒鹆鵓鹁鵜鹈鵝鹅鵠鹄鵡鹉鵪鹌鵬鹏鵮鹐鵯鹎鵲鹊鵷鹓鵾鹍鶄䴖鶇鸫鶉鹑鶊鹒鶓鹋鶖鹙鶘鹕鶚鹗鶡鹖鶥鹛鶩鹜鶪䴗鶬鸧鶯莺鶲鹟鶴鹤鶹鹠鶺鹡鶻鹘鶼鹣鷀鹚鷁鹢鷂鹞鷄鸡鷈䴘鷊鹝鷓鹧鷖鹥鷗鸥鷙鸷鷚鹨鷥鸶鷦鹪鷫鹔鷯鹩鷲鹫鷳鹇鷸鹬鷹鹰鷺鹭鷽鸴鷿䴙鸂㶉鸇鹯鸌鹱鸏鹲鸕鸬鸘鹴鸚鹦鸛鹳鸝鹂鸞鸾鹵卤鹹咸鹺鹾鹼碱鹽盐麗丽麤粗麥麦麩麸麯曲麴麹麵面麼么麽么黃黄黌黉點点黨党黲黪黴霉黶黡黷黩黽黾黿鼋鼇鳌鼈鳖鼉鼍鼕冬鼴鼹齊齐齋斋齎赍齏齑齒齿齔龀齕龁齗龂齙龅齜龇齟龃齠龆齡龄齣出齦龈齧啮齩咬齪龊齬龉齲龋齶腭齷龌龍龙龎厐龐庞龑䶮龔龚龕龛龜龟';
+const T2S = new Map();
+for (let i = 0; i + 1 < T2S_PAIRS.length; i += 2) T2S.set(T2S_PAIRS[i], T2S_PAIRS[i + 1]);
+
+/* ---------- 由布局生成每一层 ---------- */
+const SHELVES = [], SHELF = new Map();
+for (const c of LAYOUT) {
+  const regs = c.shelves.map(s => Array.isArray(s) ? { y: s[0], h: s[1] } : { y: s, h: 1 }).sort((a, b) => a.y - b.y);
+  regs.forEach((r, i) => SHELVES.push({ id: c.id + (i + 1), col: c.id, n: i + 1, y: r.y, h: r.h, top: false }));
+  if (c.top) SHELVES.push({ id: c.id + (regs.length + 1), col: c.id, n: regs.length + 1, y: Math.max(...regs.map(r => r.y + r.h)), h: 1, top: true });
+}
+for (const s of SHELVES) SHELF.set(s.id, s);
+const TOP_UNITS = Math.max(...SHELVES.map(s => s.y + s.h));
+
+/* ---------- 设备 ---------- */
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const STANDALONE = navigator.standalone === true || !!(window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+const ON_WEB = /^https?:$/.test(location.protocol);
+const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+const DEVICE = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'iPad'
+  : /iPhone|iPod/.test(navigator.userAgent) ? 'iPhone' : /Mac/.test(navigator.platform) ? 'Mac' : '电脑';
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const stage = $('stage'), sizer = $('sizer'), caseEl = $('case'), details = $('details'), dBody = $('dBody');
+const qEl = $('q'), qClear = $('qClear'), results = $('results'), legend = $('legend');
+const fileIn = $('fileIn'), dlgSync = $('dlgSync'), dlgMenu = $('dlgMenu'), dlgCloud = $('dlgCloud');
+
+/* ---------- 小工具 ---------- */
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const str = v => (v == null ? '' : String(v));
+const esc = s => str(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function hash(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function norm(s) {
+  s = str(s).normalize('NFKC').toLowerCase();
+  let out = '';
+  for (const ch of s) out += T2S.get(ch) || ch;
+  return out;
+}
+function normLoc(raw) {
+  const s = str(raw).normalize('NFKC').toUpperCase().replace(/[\s\-_.·,，、]/g, '');
+  const m = s.match(/^([A-Z]+)0*(\d+)$/);
+  return m ? m[1] + m[2] : s;
+}
+// 给人看的位置：书架上有的就写编号，没有的写「未上架」
+const locLabel = b => SHELF.has(b._loc) ? b._loc : '未上架' + (b.loc ? `（BookBuddy 里是 ${b.loc}）` : '');
+function div(cls) { const el = document.createElement('div'); el.className = cls; return el; }
+function box(cls, st) {
+  const el = div(cls);
+  for (const k in st) el.style[k] = st[k] + 'px';
+  return el;
+}
+const genreLabel = g => g ? (GENRE_ZH[g] || g) : '未分类';
+function luminance(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [n >> 16, (n >> 8) & 255, n & 255].map(v => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+}
+// 书脊文字用深色还是浅色：取对比度更高的那个
+function textOn(hex) {
+  const L = luminance(hex), ratio = o => (Math.max(L, o) + 0.05) / (Math.min(L, o) + 0.05);
+  return ratio(luminance(DARK_TEXT)) >= ratio(luminance(LIGHT_TEXT)) ? DARK_TEXT : LIGHT_TEXT;
+}
+
+/* ---------- 状态 ---------- */
+// moves / orders 之外还记着删除和修改的时间（gone、orderAt），多台设备合并时逐条取最新的
+function blank() {
+  return { v: 1, books: [], moves: {}, gone: {}, orders: {}, orderAt: {}, settings: { sort: 'genre', sortAt: 0, colors: {} }, meta: null };
+}
+// 读本地数据或备份文件时逐项检查，格式不对的丢掉
+function normalizeState(s) {
+  const out = blank();
+  if (!s || typeof s !== 'object' || !Array.isArray(s.books)) return out;
+  out.books = s.books.filter(b => b && typeof b === 'object' && b.k && b.title).map(b => {
+    const o = {};
+    for (const f of BOOK_FIELDS) o[f] = str(b[f]);
+    return o;
+  });
+  for (const [k, m] of Object.entries(s.moves && typeof s.moves === 'object' ? s.moves : {})) {
+    if (m && SHELF.has(m.to)) out.moves[k] = { to: m.to, from: str(m.from), at: Number(m.at) || 0 };
+  }
+  for (const [id, list] of Object.entries(s.orders && typeof s.orders === 'object' ? s.orders : {})) {
+    if (SHELF.has(id) && Array.isArray(list)) out.orders[id] = list.filter(k => typeof k === 'string');
+  }
+  for (const [k, t] of Object.entries(s.gone && typeof s.gone === 'object' ? s.gone : {})) if (Number(t) > 0) out.gone[k] = Number(t);
+  for (const [id, t] of Object.entries(s.orderAt && typeof s.orderAt === 'object' ? s.orderAt : {})) {
+    if (SHELF.has(id) && Number(t) > 0) out.orderAt[id] = Number(t);
+  }
+  const st = s.settings && typeof s.settings === 'object' ? s.settings : {};
+  if (SORTS.includes(st.sort)) out.settings.sort = st.sort;
+  out.settings.sortAt = Number(st.sortAt) || 0;
+  for (const [g, c] of Object.entries(st.colors && typeof st.colors === 'object' ? st.colors : {})) {
+    if (/^#[0-9a-f]{6}$/i.test(c)) out.settings.colors[g] = c;
+  }
+  if (s.meta && typeof s.meta === 'object') out.meta = { name: str(s.meta.name), at: Number(s.meta.at) || 0, n: Number(s.meta.n) || 0 };
+  return out;
+}
+function loadState() {
+  try { return normalizeState(JSON.parse(localStorage.getItem(STORE_KEY))); } catch (e) { return blank(); }
+}
+const replacer = (k, v) => (DERIVED.has(k) ? undefined : v);
+let saveError = '';
+function persist() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(S, replacer));
+    saveError = '';
+    return true;
+  } catch (e) {
+    saveError = e && e.name === 'QuotaExceededError' ? '存储空间不够' : str((e && e.message) || e);
+    toast('');
+    return false;
+  }
+}
+// 本机保存；开了同步的话，稍后上传
+function save() {
+  const ok = persist();
+  if (L.sync) {
+    L.sync.dirty = true;
+    saveLocal();
+    schedulePush();
+    renderSyncStatus();
+  }
+  return ok;
+}
+function loadLocal() {
+  let l = null;
+  try { l = JSON.parse(localStorage.getItem(LOCAL_KEY)); } catch (e) { l = null; }
+  if (!l || typeof l !== 'object') {
+    // 老版本把这几项放在书目数据里
+    let old = {};
+    try { old = (JSON.parse(localStorage.getItem(STORE_KEY)) || {}).settings || {}; } catch (e) { old = {}; }
+    l = { editTipShown: old.editTipShown, hintAt: old.hintAt, backupAt: old.backupAt };
+  }
+  const c = l.sync && typeof l.sync === 'object' ? l.sync : null;
+  return {
+    editTipShown: l.editTipShown === true, hintAt: Number(l.hintAt) || 0, backupAt: Number(l.backupAt) || 0,
+    sync: c && /^[\w.-]+\/[\w.-]+$/.test(c.repo) && c.token && typeof c.token === 'string' ? {
+      repo: c.repo, token: c.token, sha: c.sha ? str(c.sha) : null, etag: c.etag ? str(c.etag) : null,
+      dirty: c.dirty === true, at: Number(c.at) || 0, err: str(c.err), offline: c.offline === true,
+    } : null,
+  };
+}
+function saveLocal() {
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(L)); } catch (e) { /* 存不下就算了，下次再设置 */ }
+}
+function requestPersist() {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* 不支持就算了 */ }
+}
+
+let S = loadState();
+let L = loadLocal();
+let BOOK = new Map();     // key → book
+let SPINE = new Map();    // key → 书脊元素
+let D = { byShelf: new Map(), pos: new Map(), unplaced: [] };
+let G = null;             // 当前画布尺寸
+let z = 1, fitMode = true, fitAll = false;
+let selectedK = null, editing = false, query = '', terms = [], genreOn = new Set();
+let lastResults = [], activeIdx = 0, suppressUntil = 0;
+const COLL = new Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'en'], { numeric: true, sensitivity: 'base' });
+
+let toastTimer = 0;
+function toast(msg, ms = 3500) {
+  if (saveError) {
+    msg = (msg ? msg + '\n' : '') + `⚠️ 没能保存到这台设备（${saveError}），` +
+      (L.sync ? '不过同步开着，改动仍会上传到云端。' : '关掉页面后这些改动会丢失。可以在设置里导出备份。');
+    ms = Math.max(ms, 9000);
+  }
+  if (!msg) return;
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* ---------- 修改待同步和手动排序（顺便记下时间，合并时用） ---------- */
+function setMove(k, m) { S.moves[k] = m; delete S.gone[k]; }
+function dropMove(k, at = Date.now()) { if (S.moves[k]) { delete S.moves[k]; S.gone[k] = at; } }
+function setOrder(id, list) { S.orders[id] = list; S.orderAt[id] = Date.now(); }
+function resetOrder(id) { delete S.orders[id]; S.orderAt[id] = Date.now(); }
+
+/* ---------- CSV ---------- */
+function parseCSV(t) {
+  const first = t.slice(0, t.indexOf('\n') >>> 0);
+  const count = ch => first.split(ch).length;
+  const sep = count(';') > count(',') ? ';' : count('\t') > count(',') ? '\t' : ',';
+  const rows = [];
+  let row = [], f = '', q = false, start = true;
+  for (let i = 0, n = t.length; i < n; i++) {
+    const c = t[i];
+    if (q) {
+      if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; }
+      else f += c;
+    } else if (c === '"' && start) { q = true; start = false; }   // 只有字段开头的引号才表示带引号的字段
+    else if (c === sep) { row.push(f); f = ''; start = true; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && t[i + 1] === '\n') i++;
+      row.push(f); rows.push(row); row = []; f = ''; start = true;
+    } else { f += c; start = false; }
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows;
+}
+// 每本书的 key：加入时间 + 书名；碰巧重复的，整组都加上卷号、ISBN、副标题，和 CSV 里的行顺序无关
+function assignKeys(books) {
+  const groups = new Map();
+  for (const b of books) {
+    const base = b.added + '|' + b.title;
+    const g = groups.get(base);
+    g ? g.push(b) : groups.set(base, [b]);
+  }
+  for (const [base, g] of groups) {
+    if (g.length === 1) { g[0].k = base; continue; }
+    const seen = new Map();
+    for (const b of g) {
+      const k = [base, b.volume, b.isbn, b.subtitle].join('|');
+      const n = (seen.get(k) || 0) + 1;
+      seen.set(k, n);
+      b.k = n > 1 ? `${k}#${n}` : k;
+    }
+  }
+}
+// 上次导入里有、这次 key 对不上的书（比如在 BookBuddy 里改了书名），按其它信息再认一次
+function matchLostBooks(old, books) {
+  const map = new Map(), now = new Set(books.map(b => b.k));
+  const fresh = books.filter(b => !old.has(b.k)), used = new Set();
+  if (!fresh.length) return map;
+  const tests = [
+    o => o.added && o.isbn && (b => b.added === o.added && b.isbn === o.isbn),
+    o => o.added && (b => b.added === o.added && b.volume === o.volume && b.subtitle === o.subtitle),
+    o => o.added && (b => b.added === o.added),
+    o => o.isbn && (b => b.isbn === o.isbn),
+    o => b => b.title === o.title && b.author === o.author,
+  ];
+  for (const o of old.values()) {
+    if (now.has(o.k)) continue;
+    for (const t of tests) {
+      const pred = t(o);
+      if (!pred) continue;
+      const c = fresh.filter(b => !used.has(b.k) && pred(b));
+      if (c.length === 1) { map.set(o.k, c[0].k); used.add(c[0].k); break; }
+    }
+  }
+  return map;
+}
+
+function importCsv(text, name) {
+  const rows = parseCSV(str(text).replace(/^\uFEFF/, ''));
+  const hdr = (rows[0] || []).map(h => h.trim());
+  const col = {};
+  hdr.forEach((h, i) => { if (!(h in col)) col[h] = i; });
+  if (!('Title' in col) || !('Physical Location' in col)) {
+    toast('这个文件不像 BookBuddy 导出的 CSV（没找到 Title 或 Physical Location 这两列）', 6000);
+    return;
+  }
+  const get = (r, n) => (n in col ? (r[col[n]] || '') : '').trim();
+  const books = [];
+  let skipped = 0;
+  for (const r of rows.slice(1)) {
+    const title = get(r, 'Title');
+    if (!title) continue;
+    if (get(r, 'Wish List') === '1' || get(r, 'Previously Owned') === '1') { skipped++; continue; }
+    books.push({
+      title, subtitle: get(r, 'Subtitle'), series: get(r, 'Series'), volume: get(r, 'Volume'),
+      author: get(r, 'Author'), authorSort: get(r, 'Author (Last, First)'), translator: get(r, 'Translator'), editor: get(r, 'Editor'),
+      publisher: get(r, 'Publisher'), year: get(r, 'Year Published') || get(r, 'Date Published').slice(0, 4),
+      genre: get(r, 'Genre'), pages: get(r, 'Number of Pages'), lang: get(r, 'Language'), isbn: get(r, 'ISBN'),
+      loc: get(r, 'Physical Location'), added: get(r, 'Date Added'), img: get(r, 'Uploaded Image URL'),
+      notes: get(r, 'Notes'), summary: get(r, 'Summary'), loaned: get(r, 'Loaned To'),
+    });
+  }
+  if (!books.length) { toast('CSV 里没有找到书', 5000); return; }
+  assignKeys(books);
+
+  const first = !S.books.length, old = BOOK;
+  // 改过书名等原因导致 key 变了的书，把待同步和手动排序接到新 key 上
+  const remap = matchLostBooks(old, books), back = new Map();
+  for (const [ok, nk] of remap) {
+    back.set(nk, ok);
+    if (S.moves[ok]) { setMove(nk, S.moves[ok]); dropMove(ok); }
+    if (selectedK === ok) selectedK = nk;
+  }
+  for (const id of Object.keys(S.orders)) {
+    if (S.orders[id].some(k => remap.has(k))) setOrder(id, S.orders[id].map(k => remap.get(k) || k));
+  }
+
+  const now = new Map(books.map(b => [b.k, b]));
+  let added = 0, removed = 0, relocated = 0;
+  for (const b of books) {
+    const o = old.get(b.k) || old.get(back.get(b.k));
+    if (!o) added++;
+    else if (normLoc(o.loc) !== normLoc(b.loc)) relocated++;
+  }
+  for (const k of old.keys()) if (!now.has(k) && !remap.has(k)) removed++;
+
+  // 核对待同步清单
+  const done = [], overridden = [], invalid = [], lost = [];
+  for (const [k, m] of Object.entries(S.moves)) {
+    const b = now.get(k);
+    if (!b) { lost.push((old.get(k) || {}).title || '（未知）'); dropMove(k); continue; }
+    const loc = normLoc(b.loc);
+    if (loc === m.to) { done.push(b); dropMove(k); }
+    else if (loc === normLoc(m.from)) continue;                  // BookBuddy 里还没改
+    else if (!SHELF.has(loc)) invalid.push(b);                   // 改成了书架上没有的位置：先保留
+    else { overridden.push(b); dropMove(k); }                    // 改成了别的层：以 BookBuddy 为准
+  }
+  for (const id of Object.keys(S.orders)) {
+    S.orders[id] = S.orders[id].filter(k => now.has(k));
+    if (!S.orders[id].length) delete S.orders[id];
+  }
+  S.books = books;
+  S.meta = { name: name || '', at: Date.now(), n: books.length };
+  if (selectedK && !now.has(selectedK)) selectedK = null;
+  rebuildIndex();
+  ensureColors();
+  save();
+  render();
+  if (first) { fit(); requestPersist(); }
+
+  const left = Object.keys(S.moves).length;
+  const names = list => list.slice(0, 3).map(t => `《${t}》`).join('') + (list.length > 3 ? ` 等 ${list.length} 本` : '');
+  const lines = [`已导入 ${books.length} 本书` + (first ? '' : `（新增 ${added}，移除 ${removed}，换位置 ${relocated}）`) +
+    (D.unplaced.length ? `，${D.unplaced.length} 本未上架` : '') + '。'];
+  if (skipped) lines.push(`忽略了 ${skipped} 本心愿单 / 已不拥有的书。`);
+  if (done.length && !left) lines.push(`待同步的 ${done.length} 项都改好了 ✓`);
+  else if (done.length) lines.push(`待同步：完成 ${done.length} 项，还剩 ${left} 项。`);
+  else if (left) lines.push(`还有 ${left} 项待同步。`);
+  if (overridden.length) lines.push(`${names(overridden.map(b => b.title))}在 BookBuddy 里改成了别的位置，已按 BookBuddy 为准。`);
+  if (invalid.length) lines.push(`${names(invalid.map(b => b.title))}在 BookBuddy 里填的位置书架上没有，待同步先保留。`);
+  if (lost.length) lines.push(`有 ${lost.length} 条待同步找不到对应的书（可能在 BookBuddy 里删掉了），已移除：${names(lost)}`);
+  toast(lines.join('\n'), 6000 + 2500 * lines.length);
+}
+
+/* ---------- 备份 ---------- */
+function backup() {
+  if (!S.books.length) { toast('还没有数据可以备份'); return; }
+  const data = JSON.stringify({ app: 'vshelf', v: 1, exportedAt: new Date().toISOString(), state: S }, replacer);
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const name = `虚拟书架备份-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json`;
+  const done = () => { L.backupAt = Date.now(); saveLocal(); if (dlgSync.open) renderSync(); };
+  // iPhone / iPad 上用系统分享面板（可以「存储到文件」或者隔空投送）
+  if (IS_IOS && typeof File === 'function' && navigator.canShare) {
+    const file = new File([data], name, { type: 'application/json' });
+    if (navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: '虚拟书架备份' }).then(done, e => {
+        if (!e || e.name !== 'AbortError') { download(data, name); done(); }
+      });
+      return;
+    }
+  }
+  download(data, name);
+  done();
+}
+function download(data, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+}
+function restore(text) {
+  let d;
+  try { d = JSON.parse(text); } catch (e) { toast('备份文件读不出来'); return; }
+  if (!d || d.app !== 'vshelf' || !d.state || !Array.isArray(d.state.books)) { toast('这不是虚拟书架的备份文件'); return; }
+  if (S.books.length && !confirm(L.sync ? '用这个备份覆盖现在的数据吗？开着同步，其它设备上的也会一起被覆盖。' : '用这个备份覆盖这台设备上现在的数据吗？')) return;
+  const prev = S, now = Date.now();
+  S = normalizeState(d.state);
+  // 恢复备份算作「现在」做的修改，这样同步时备份里的内容会盖过其它设备上更早的数据
+  S.meta = Object.assign({ name: '备份', n: S.books.length }, S.meta, { at: now });
+  for (const m of Object.values(S.moves)) m.at = now;
+  for (const k of [...Object.keys(prev.moves), ...Object.keys(prev.gone)]) if (!S.moves[k]) S.gone[k] = now;
+  for (const sh of SHELVES) S.orderAt[sh.id] = now;
+  S.settings.sortAt = now;
+  selectedK = null;
+  rebuildIndex();
+  ensureColors();
+  save();
+  render();
+  fit();
+  requestPersist();
+  toast(`已从备份恢复：${S.books.length} 本书，${Object.keys(S.moves).length} 项待同步`, 5000);
+}
+async function importFile(file) {
+  let text;
+  try { text = await file.text(); } catch (e) { toast('读取文件失败：' + e.message); return; }
+  if (/\.json$/i.test(file.name) || /^\s*\{/.test(text)) restore(text);
+  else importCsv(text, file.name);
+}
+
+/* ---------- 书目索引 ---------- */
+function prep(b) {
+  const p = parseInt(b.pages, 10), av = b.genre === 'Audio & Video';
+  b._w = p > 0 ? clamp(Math.round(12 + p * 0.045), 16, 44) : av ? 16 : 26;
+  b._h = Math.round((U - BT - 10) * (av ? 0.5 : 0.72 + (hash(b.k) % 1000) / 1000 * 0.22));
+  b._s = norm([b.title, b.subtitle, b.author, b.authorSort, b.series, b.translator, b.editor, b.publisher, b.isbn].join('\n'));
+  b._loc = normLoc(b.loc);
+  b._x = '';
+}
+function rebuildIndex() {
+  BOOK = new Map();
+  const byTitle = new Map();
+  for (const b of S.books) {
+    prep(b);
+    BOOK.set(b.k, b);
+    const g = byTitle.get(b.title);
+    g ? g.push(b) : byTitle.set(b.title, [b]);
+  }
+  // 同名的书（一套书的几册）在书脊上加上副标题或卷号来区分
+  for (const g of byTitle.values()) {
+    if (g.length < 2) continue;
+    const subsUnique = new Set(g.map(b => b.subtitle)).size === g.length;
+    for (const b of g) b._x = subsUnique && b.subtitle ? b.subtitle : b.volume ? `第 ${b.volume} 卷` : b.subtitle;
+  }
+}
+function genreCounts() {
+  const m = new Map();
+  for (const b of S.books) m.set(b.genre, (m.get(b.genre) || 0) + 1);
+  return new Map([...m].sort((a, b) => b[1] - a[1] || COLL.compare(a[0], b[0])));
+}
+// 每个分类固定一种颜色；已经不存在的分类，它的颜色可以让给新分类
+function ensureColors() {
+  const cm = S.settings.colors, present = genreCounts();
+  const used = new Set([...present.keys()].map(g => cm[g]).filter(Boolean));
+  for (const g of present.keys()) {
+    if (cm[g]) continue;
+    const c = PALETTE.find(c => !used.has(c)) || PALETTE[hash(g) % PALETTE.length];
+    for (const og of Object.keys(cm)) if (cm[og] === c && !present.has(og)) delete cm[og];
+    cm[g] = c;
+    used.add(c);
+  }
+}
+const colorOf = g => S.settings.colors[g] || '#777777';
+const effLoc = b => (S.moves[b.k] ? S.moves[b.k].to : b._loc);
+
+function comparator(mode) {
+  const c = (a, b) => COLL.compare(a || '', b || '');
+  const vol = (a, b) => (parseFloat(a.volume) || 0) - (parseFloat(b.volume) || 0);
+  const tail = (a, b) => c(a.series, b.series) || vol(a, b) || c(a.title, b.title) || c(a.subtitle, b.subtitle);
+  switch (mode) {
+    case 'title': return (a, b) => c(a.series || a.title, b.series || b.title) || vol(a, b) || c(a.title, b.title) || c(a.subtitle, b.subtitle);
+    case 'author': return (a, b) => c(a.authorSort || a.author, b.authorSort || b.author) || tail(a, b);
+    case 'added': return (a, b) => (a.added < b.added ? -1 : a.added > b.added ? 1 : 0) || c(a.title, b.title);
+    default: return (a, b) => c(a.genre, b.genre) || tail(a, b);
+  }
+}
+function derive() {
+  const byShelf = new Map(SHELVES.map(s => [s.id, []])), unplaced = [];
+  for (const b of S.books) (byShelf.get(effLoc(b)) || unplaced).push(b);
+  const cmp = comparator(S.settings.sort), pos = new Map();
+  for (const [id, list] of byShelf) {
+    const ord = S.orders[id];
+    if (ord && ord.length) {
+      const idx = new Map(ord.map((k, i) => [k, i]));
+      list.sort((a, b) => {
+        const ia = idx.has(a.k) ? idx.get(a.k) : Infinity, ib = idx.has(b.k) ? idx.get(b.k) : Infinity;
+        return ia === ib ? cmp(a, b) : ia < ib ? -1 : 1;
+      });
+    } else list.sort(cmp);
+    list.forEach((b, i) => pos.set(b.k, { s: id, i, n: list.length }));
+  }
+  unplaced.sort((a, b) => COLL.compare(a.loc, b.loc) || cmp(a, b));
+  D = { byShelf, pos, unplaced };
+}
+
+/* ---------- 画书架 ---------- */
+function geometry() {
+  let base = 380;
+  for (const c of LAYOUT) {
+    let need = 0;
+    for (const s of SHELVES) if (s.col === c.id) need = Math.max(need, D.byShelf.get(s.id).reduce((a, b) => a + b._w + 1, 0));
+    base = Math.max(base, (Math.ceil(need * 1.04) + 2 * PAD + 2 * ST + 24) / (c.width || 1));
+  }
+  base = Math.ceil(base);
+  const cols = {};
+  let x = M;
+  for (const c of LAYOUT) {
+    const w = Math.round(base * (c.width || 1));
+    cols[c.id] = { x, w };
+    x += w + GAP;
+  }
+  return { w: x - GAP + M, h: 0, cols, floorY: M + TOP_UNITS * U, yTop: yu => M + (TOP_UNITS - yu) * U };
+}
+function spineEl(b, maxH) {
+  const el = div('spine');
+  const c = colorOf(b.genre);
+  el.dataset.k = b.k;
+  el.style.width = b._w + 'px';
+  el.style.height = Math.min(b._h, maxH || Infinity) + 'px';
+  el.style.setProperty('--c', c);
+  el.style.color = textOn(c);
+  el.title = b.title + (b._x ? ' · ' + b._x : '') + (b.author ? ' — ' + b.author : '');
+  const line = (text, cls) => {
+    const s = el.appendChild(document.createElement('span'));
+    if (cls) s.className = cls;
+    s.textContent = text;
+  };
+  if (b._x && b._w >= 24) { line(b.title); line(b._x, 'a'); }
+  else if (b._x) line(b._x + ' · ' + b.title);       // 窄书脊只有一行：把区分用的卷号放前面，免得被省略号吃掉
+  else { line(b.title); if (b._w >= 32 && b.author) line(b.author, 'a'); }
+  if (b._w < 20) el.classList.add('thin');
+  if (S.moves[b.k]) el.classList.add('pending');
+  if (b.loaned) el.classList.add('loaned');
+  if (b.k === selectedK) el.classList.add('sel');
+  SPINE.set(b.k, el);
+  return el;
+}
+function shelfEl(s, cg) {
+  const list = D.byShelf.get(s.id);
+  const el = box('shelf' + (s.top ? ' top' : '') + (list.length ? '' : ' empty'), {
+    left: cg.x + ST, width: cg.w - 2 * ST, top: G.yTop(s.y + s.h), height: s.h * U,
+  });
+  el.dataset.s = s.id;
+  const books = el.appendChild(div('inner')).appendChild(div('books'));
+  const maxH = s.h * U - BT - 6;    // 矮的格子里，书也画得矮一点
+  for (const b of list) books.appendChild(spineEl(b, maxH));
+  const board = el.appendChild(div('board'));
+  board.appendChild(div('plate')).textContent = `${s.id}${s.top ? ' 柜顶' : ''} · ${list.length}本`;
+  if (S.orders[s.id]) {
+    const r = board.appendChild(document.createElement('button'));
+    r.className = 'reord';
+    r.dataset.reset = s.id;
+    r.textContent = '↺ 恢复自动排序';
+  }
+  return el;
+}
+function buildCase() {
+  G = geometry();
+  SPINE = new Map();
+  const frag = document.createDocumentFragment();
+  frag.appendChild(box('floor', { left: M - 12, top: G.floorY, width: G.w - 2 * M + 24, height: FLOOR }));
+  for (const c of LAYOUT) {
+    const cg = G.cols[c.id];
+    const regs = SHELVES.filter(s => s.col === c.id && !s.top);
+    const y0 = Math.min(...regs.map(s => s.y)), y1 = Math.max(...regs.map(s => s.y + s.h));
+    frag.appendChild(box('colname', { left: cg.x, width: cg.w, top: M + (G.yTop(y1) - BT - M) / 2 - 36 })).textContent = c.id;
+    frag.appendChild(box('cab', { left: cg.x, width: cg.w, top: G.yTop(y1) - BT, height: (y1 - y0) * U + BT }));
+    for (const s of SHELVES) if (s.col === c.id) frag.appendChild(shelfEl(s, cg));
+  }
+  caseEl.textContent = '';
+  caseEl.appendChild(frag);
+  let h = G.floorY + FLOOR + M;
+  if (D.unplaced.length) {
+    const t = box('tray', { left: M, top: h, width: G.w - 2 * M });
+    t.innerHTML = `<h3>未上架 · ${D.unplaced.length} 本<small>BookBuddy 里的位置是空的，或者书架上没有这个位置</small></h3>`;
+    for (const b of D.unplaced) {
+      const it = t.appendChild(div('titem'));
+      it.appendChild(spineEl(b));
+      it.appendChild(div('tag')).textContent = b.loc || '空';
+    }
+    caseEl.appendChild(t);
+    h += t.offsetHeight + M;
+  }
+  G.h = h;
+  caseEl.style.width = G.w + 'px';
+  caseEl.style.height = h + 'px';
+  applyZoom();
+}
+function renderLegend() {
+  const counts = genreCounts();
+  legend.innerHTML = (genreOn.size ? '<button class="chip clear" data-clear="1">✕ 清除筛选</button>' : '') + [...counts].map(([g, n]) =>
+    `<button class="chip${genreOn.has(g) ? ' on' : ''}" data-g="${esc(g)}" style="--c:${esc(colorOf(g))}"><i></i>${esc(genreLabel(g))}<small>${n}</small></button>`
+  ).join('');
+}
+function renderBadge() {
+  const n = Object.keys(S.moves).length;
+  $('syncN').textContent = n;
+  $('btnSync').classList.toggle('has', n > 0);
+}
+function renderHint() {
+  const show = IS_IOS && !STANDALONE && ON_WEB && S.books.length > 0 && Date.now() - L.hintAt > 14 * 864e5;
+  const was = !$('hint').hidden;
+  $('hint').hidden = !show;
+  if (show) {
+    $('hintText').textContent = '建议在 Safari 里点分享 →「添加到主屏幕」，以后从主屏幕打开：Safari 里的网站数据 7 天不打开可能会被清掉，主屏幕上的不会。' +
+      (L.sync ? '两边的数据不互通，到主屏幕上的书架里再设置一次同步就行。'
+        : Object.keys(S.moves).length || Object.keys(S.orders).length ? '两边的数据不互通，可以先在设置里导出备份，再到主屏幕上的书架里导入。' : '');
+  }
+  return was !== show;
+}
+function renderEmpty() {
+  $('empty').hidden = S.books.length > 0;
+  const p = $('emptyIOS');
+  p.hidden = !IS_IOS;
+  p.textContent = STANDALONE
+    ? '在别的设备上开了同步的话，点「从其他设备同步」就行。BookBuddy 导出 CSV 时可以选「存储到“文件”」，这里就能选到。'
+    : ON_WEB ? '建议先点 Safari 的分享按钮 →「添加到主屏幕」，从主屏幕打开再导入。Safari 里的网站数据 7 天不打开可能会被清掉，主屏幕上的不会；两边的数据也不互通。' : '';
+}
+function render() {
+  const prev = G && { w: G.w, h: G.h };
+  derive();
+  buildCase();
+  renderLegend();
+  renderBadge();
+  applyHighlight();
+  renderDetails();
+  renderEmpty();
+  const hintChanged = renderHint();
+  if (dlgSync.open) renderSync();
+  // 画布大小变了（比如未上架区没了）且正处于「适应屏幕」状态：重新适应，但不跳回左上角
+  if (fitMode && (hintChanged || (prev && (prev.w !== G.w || prev.h !== G.h)))) setZoom(fitZoom(fitAll));
+}
+
+/* ---------- 缩放 ---------- */
+function applyZoom() {
+  if (!G) return;
+  caseEl.style.transform = `scale(${z})`;
+  sizer.style.width = Math.ceil(G.w * z) + 'px';
+  sizer.style.height = Math.ceil(G.h * z) + 'px';
+}
+function setZoom(nz, ax, ay) {
+  nz = clamp(nz, ZMIN, ZMAX);
+  const sr = stage.getBoundingClientRect();
+  if (ax == null) { ax = sr.left + sr.width / 2; ay = sr.top + sr.height / 2; }
+  const r0 = sizer.getBoundingClientRect();
+  const px = (ax - r0.left) / z, py = (ay - r0.top) / z;
+  z = nz;
+  applyZoom();
+  const r1 = sizer.getBoundingClientRect();
+  stage.scrollLeft += r1.left + px * z - ax;
+  stage.scrollTop += r1.top + py * z - ay;
+}
+// 「适应屏幕」的缩放比例。整体缩下来上下空出一半左右（手机竖屏、iPad 竖屏）时，改成看得清书名、左右滑动：
+// 高度不超出屏幕，宽度大约放下一个书柜，至少 0.6 倍
+function fitZoom(all) {
+  const v = visibleRect();
+  const zAll = Math.min((v.width - 16) / G.w, (v.height - 16) / G.h);
+  const zH = Math.min(1, (v.height - 16) / G.h);
+  if (all || zAll >= 0.55 * zH) return clamp(zAll, ZMIN, ZMAX);
+  const zCab = (v.width - 16) / (Math.max(...Object.values(G.cols).map(c => c.w)) + 2 * M);
+  return clamp(Math.min(zH, Math.max(zAll, 0.6, zCab)), ZMIN, ZMAX);
+}
+function fit(all) {
+  if (!G || !stage.clientWidth) return;
+  fitAll = !!all;
+  fitMode = true;
+  setPad(...panelPad());
+  z = fitZoom(fitAll);
+  applyZoom();
+  stage.scrollLeft = 0;
+  stage.scrollTop = 0;
+}
+$('zIn').onclick = () => { fitMode = false; setZoom(z * 1.3); };
+$('zOut').onclick = () => { fitMode = false; setZoom(z / 1.3); };
+$('zFit').onclick = () => fit(true);
+const onResize = () => { padForDetails(); if (fitMode) fit(fitAll); };
+// 看 #main 而不是 #stage：详情面板给 #stage 加留白时不算窗口变了
+if (window.ResizeObserver) new ResizeObserver(onResize).observe($('main'));
+else window.addEventListener('resize', onResize);
+
+// 触屏双指缩放（同时可以平移）
+let pinch = null;
+stage.addEventListener('touchstart', e => {
+  if (e.touches.length !== 2) return;
+  if (drag) endDrag(false);
+  const [a, b] = e.touches, r = sizer.getBoundingClientRect();
+  const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+  pinch = { d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, z0: z, px: (mx - r.left) / z, py: (my - r.top) / z };
+}, { passive: true });
+stage.addEventListener('touchmove', e => {
+  if (drag && drag.on && drag.touch && e.cancelable) { e.preventDefault(); return; }   // 拿起书之后不让画布跟着滚
+  if (!pinch || e.touches.length !== 2) return;
+  // 如果一根手指已经让画布滚起来了，就没法接管；交给下面的 gesturechange 来缩放
+  if (!e.cancelable) { pinch = null; return; }
+  e.preventDefault();
+  const [a, b] = e.touches;
+  const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+  fitMode = false;
+  z = clamp(pinch.z0 * Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / pinch.d0, ZMIN, ZMAX);
+  applyZoom();
+  const r = sizer.getBoundingClientRect();
+  stage.scrollLeft += r.left + pinch.px * z - mx;
+  stage.scrollTop += r.top + pinch.py * z - my;
+}, { passive: false });
+const endPinch = e => { if (e.touches.length < 2) pinch = null; };
+stage.addEventListener('touchend', endPinch);
+stage.addEventListener('touchcancel', endPinch);
+
+// Safari 的捏合手势（Mac 触控板，以及上面接管不了的触屏捏合），并阻止整页被放大
+let gz = null;
+document.addEventListener('gesturestart', e => { e.preventDefault(); gz = stage.contains(e.target) ? z : null; });
+document.addEventListener('gesturechange', e => {
+  e.preventDefault();
+  if (gz == null || pinch) return;
+  fitMode = false;
+  setZoom(gz * e.scale, e.clientX, e.clientY);
+});
+document.addEventListener('gestureend', e => { e.preventDefault(); gz = null; });
+// 其它浏览器的触控板捏合（ctrl + 滚轮），以及 ⌘ + 滚轮
+stage.addEventListener('wheel', e => {
+  if (!(e.ctrlKey || e.metaKey) || gz != null) return;
+  e.preventDefault();
+  fitMode = false;
+  setZoom(z * Math.exp(-clamp(e.deltaY, -25, 25) * 0.01), e.clientX, e.clientY);
+}, { passive: false });
+
+/* ---------- 搜索与高亮 ---------- */
+function matches(b, ignoreGenre) {
+  return (ignoreGenre || !genreOn.size || genreOn.has(b.genre)) && terms.every(t => b._s.includes(t));
+}
+function setQuery(v) {
+  query = v;
+  terms = norm(v).split(/\s+/).filter(Boolean).map(t => /^[\d-]+x?$/i.test(t) ? t.replace(/-/g, '') : t);
+  qClear.hidden = !v;
+  activeIdx = 0;
+  applyHighlight();
+  renderResults();
+}
+function applyHighlight() {
+  const active = terms.length > 0 || genreOn.size > 0;
+  caseEl.classList.toggle('dim', active);
+  for (const [k, el] of SPINE) el.classList.toggle('match', active && matches(BOOK.get(k)));
+}
+function locChip(b) {
+  const p = D.pos.get(b.k);
+  return p ? `<span class="loc${S.moves[b.k] ? ' acc' : ''}">${esc(p.s)}</span>` : '<span class="loc warn">未上架</span>';
+}
+function renderResults() {
+  if (!terms.length || document.activeElement !== qEl) { results.hidden = true; return; }
+  const cmp = comparator('title');
+  const list = S.books.filter(b => matches(b)).sort((a, b) => (D.pos.has(a.k) ? 0 : 1) - (D.pos.has(b.k) ? 0 : 1) || cmp(a, b));
+  lastResults = list.slice(0, 80);
+  activeIdx = clamp(activeIdx, 0, Math.max(0, lastResults.length - 1));
+  let html;
+  if (list.length) {
+    html = `<div class="rh">找到 ${list.length} 本${genreOn.size ? '（只在选中的分类里找）' : ''}</div>` + lastResults.map((b, i) => {
+      const extra = b._x || (b.series && b.volume ? `第 ${b.volume} 卷` : '');
+      const sub = [b.subtitle, extra !== b.subtitle ? extra : ''].filter(Boolean).join(' · ');
+      return `<div class="r${i === activeIdx ? ' act' : ''}" data-k="${esc(b.k)}"><span class="sw" style="background:${esc(colorOf(b.genre))}"></span>` +
+        `<div class="tx"><div class="tt">${esc(b.title)}${sub ? ` <small>${esc(sub)}</small>` : ''}</div><div class="au">${esc(b.author)}</div></div>${locChip(b)}</div>`;
+    }).join('') + (list.length > lastResults.length ? `<div class="none">还有 ${list.length - lastResults.length} 本，多输几个字试试</div>` : '');
+  } else if (genreOn.size) {
+    const all = S.books.filter(b => matches(b, true)).length;
+    html = `<div class="none">在选中的分类里没有找到「${esc(query)}」` +
+      (all ? `<br><button class="btn sm" data-act="allgenres">在全部分类里找（${all} 本）</button>` : '') + '</div>';
+  } else html = `<div class="none">没有找到「${esc(query)}」</div>`;
+  results.innerHTML = html;
+  results.hidden = false;
+  fitResults();
+}
+// 下拉框不要伸到屏幕键盘下面
+function fitResults() {
+  if (results.hidden) return;
+  const vv = window.visualViewport, bottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+  results.style.maxHeight = Math.max(140, Math.min(480, bottom - results.getBoundingClientRect().top - 8)) + 'px';
+}
+if (window.visualViewport) visualViewport.addEventListener('resize', fitResults);
+function pick(k) {
+  results.hidden = true;
+  qEl.blur();
+  locate(k);
+}
+qEl.addEventListener('input', () => setQuery(qEl.value));
+qEl.addEventListener('focus', renderResults);
+qEl.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== qEl) results.hidden = true; }, 150));
+qEl.addEventListener('keydown', e => {
+  if (e.isComposing || e.keyCode === 229) return;    // 输入法还在选字
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    activeIdx = clamp(activeIdx + (e.key === 'ArrowDown' ? 1 : -1), 0, Math.max(0, lastResults.length - 1));
+    renderResults();
+    const act = results.querySelector('.r.act');
+    if (act) act.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (lastResults[activeIdx] && !results.hidden) pick(lastResults[activeIdx].k);
+  } else if (e.key === 'Escape') {
+    if (qEl.value) { qEl.value = ''; setQuery(''); } else qEl.blur();
+  }
+});
+qClear.addEventListener('click', () => { qEl.value = ''; setQuery(''); qEl.focus(); });
+results.addEventListener('mousedown', e => e.preventDefault());
+results.addEventListener('click', e => {
+  if (e.target.closest('[data-act="allgenres"]')) {
+    genreOn.clear();
+    renderLegend();
+    applyHighlight();
+    qEl.focus();
+    renderResults();
+    return;
+  }
+  const r = e.target.closest('.r');
+  if (r) pick(r.dataset.k);
+});
+legend.addEventListener('click', e => {
+  const c = e.target.closest('.chip');
+  if (!c) return;
+  if (c.dataset.clear) genreOn.clear();
+  else if (genreOn.has(c.dataset.g)) genreOn.delete(c.dataset.g);
+  else genreOn.add(c.dataset.g);
+  renderLegend();
+  applyHighlight();
+  renderResults();
+});
+
+/* ---------- 详情面板挡住的区域 ---------- */
+function visibleRect() {
+  const sr = stage.getBoundingClientRect();
+  const v = { left: sr.left, top: sr.top, width: sr.width, height: sr.height };
+  if (!details.hidden) {
+    const dr = details.getBoundingClientRect();
+    if (dr.width > sr.width * 0.8) v.height = Math.max(80, dr.top - sr.top);
+    else v.width = Math.max(80, dr.left - sr.left);
+  }
+  return v;
+}
+function setPad(pb, pr) {
+  stage.style.paddingBottom = pb + 'px';
+  stage.style.paddingRight = pr + 'px';
+}
+// 详情面板需要在画布的哪一边留出空白，书才能滚到面板外面
+function panelPad() {
+  if (details.hidden) return [0, 0];
+  const sr = stage.getBoundingClientRect(), dr = details.getBoundingClientRect();
+  return dr.width > sr.width * 0.8 ? [Math.max(0, sr.bottom - dr.top), 0] : [0, Math.max(0, sr.right - dr.left)];
+}
+// 现在的滚动位置还需要多少留白（去掉留白时画面不能跳）
+function padStillNeeded() {
+  const cw = stage.clientWidth, ch = stage.clientHeight, sw = sizer.offsetWidth, sh = sizer.offsetHeight;
+  const curB = parseFloat(stage.style.paddingBottom) || 0, curR = parseFloat(stage.style.paddingRight) || 0;
+  return [clamp(stage.scrollTop + ch - sh, 0, curB), clamp(stage.scrollLeft + cw - sw, 0, curR)];
+}
+function padForDetails() {
+  const [pb, pr] = panelPad(), [nb, nr] = padStillNeeded();
+  setPad(Math.max(pb, nb), Math.max(pr, nr));
+}
+
+/* ---------- 选中、定位、详情 ---------- */
+function select(k, reveal) {
+  const prev = selectedK && SPINE.get(selectedK);
+  if (prev) prev.classList.remove('sel');
+  selectedK = k;
+  const el = k && SPINE.get(k);
+  if (el) el.classList.add('sel');
+  renderDetails();
+  if (k && reveal && el) {
+    padForDetails();
+    // 点的书被详情面板挡住了：把它滚到面板外面（不缩放）
+    const r = el.getBoundingClientRect(), v = visibleRect();
+    if (r.left < v.left || r.right > v.left + v.width || r.top - 12 < v.top || r.bottom > v.top + v.height) scrollToCenter(el, v);
+  }
+}
+function scrollToCenter(el, v) {
+  const r = el.getBoundingClientRect();
+  stage.scrollTo({
+    left: stage.scrollLeft + r.left + r.width / 2 - (v.left + v.width / 2),
+    top: stage.scrollTop + r.top + r.height / 2 - (v.top + v.height / 2),
+    behavior: 'smooth',
+  });
+}
+function locate(k) {
+  select(k);
+  const el = SPINE.get(k);
+  if (!el) return;
+  if (z < 0.85) { fitMode = false; setZoom(0.85); }
+  padForDetails();
+  scrollToCenter(el, visibleRect());
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+  clearTimeout(el._ft);
+  el._ft = setTimeout(() => el.classList.remove('flash'), 2800);
+}
+function whereInfo(b) {
+  const p = D.pos.get(b.k);
+  if (!p) return null;
+  const s = SHELF.get(p.s), where = s.top ? '柜顶上' : '这层';
+  let pos;
+  if (p.n === 1) pos = `${where}只有这一本`;
+  else if (S.orders[p.s]) pos = `从左往右第 ${p.i + 1} 本（${where}共 ${p.n} 本）`;
+  else pos = `${where}共 ${p.n} 本，在虚拟书架上是从左数第 ${p.i + 1} 本（层内是自动排序的，和实际摆放不一定一样）`;
+  return { code: s.id, line1: s.top ? `${s.col} 柜顶上` : `${s.col} 柜 · 第 ${s.n} 层（从下往上数）`, line2: pos };
+}
+function shelfOptions(cur) {
+  return (cur ? '' : '<option value="" selected disabled>选一个位置…</option>') + LAYOUT.map(c =>
+    `<optgroup label="${c.id} 柜">` + SHELVES.filter(s => s.col === c.id).map(s =>
+      `<option value="${s.id}"${s.id === cur ? ' selected' : ''}>${s.id}${s.top ? '（柜顶上）' : `（第 ${s.n} 层）`}</option>`
+    ).join('') + '</optgroup>'
+  ).join('');
+}
+function renderDetails() {
+  const b = selectedK && BOOK.get(selectedK);
+  if (!b) {
+    selectedK = null;
+    if (!details.hidden) {
+      details.hidden = true;
+      const [nb, nr] = padStillNeeded();
+      setPad(nb, nr);
+    }
+    return;
+  }
+  const w = whereInfo(b), mv = S.moves[b.k], color = colorOf(b.genre);
+  const img = /^https?:\/\//i.test(b.img) ? (location.protocol === 'https:' ? b.img.replace(/^http:\/\//i, 'https://') : b.img) : '';
+  const rows = [
+    ['作者', b.author], ['译者', b.translator], ['编者', b.editor],
+    ['系列', b.series && (b.series + (b.volume ? ` · 第 ${b.volume} 卷` : ''))],
+    ['出版社', b.publisher], ['出版年份', b.year], ['ISBN', b.isbn], ['页数', b.pages],
+    ['分类', b.genre && (GENRE_ZH[b.genre] ? `${GENRE_ZH[b.genre]}（${b.genre}）` : b.genre)],
+    ['语言', b.lang && (LANG_ZH[b.lang] || b.lang)], ['借给', b.loaned],
+  ].filter(r => r[1]);
+  dBody.innerHTML = `
+    <div class="dtop">
+      ${img ? `<img class="cover" src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="cover ph" style="--c:${esc(color)}"></div>`}
+      <div class="dt">
+        <h2>${esc(b.title)}</h2>
+        ${b.subtitle ? `<div class="sub">${esc(b.subtitle)}</div>` : ''}
+        ${b.author ? `<div class="au">${esc(b.author)}</div>` : ''}
+      </div>
+    </div>
+    ${w ? `<div class="where"><span class="loc">${esc(w.code)}</span><div><b>${esc(w.line1)}</b><div class="muted small">${esc(w.line2)}</div></div></div>`
+        : `<div class="where"><span class="loc warn">?</span><div><b>未上架</b><div class="muted small">${b.loc ? `BookBuddy 里的位置是「${esc(b.loc)}」，书架上没有这个位置` : 'BookBuddy 里没有填位置'}</div></div></div>`}
+    ${mv ? `<div class="pend">已在虚拟书架上移动：<b>${esc(locLabel(b))} → ${esc(mv.to)}</b><br>BookBuddy 里还没改。改好后重新导入 CSV，这一条会自动消掉。<br><button class="btn sm" data-act="undo">撤销移动</button></div>` : ''}
+    <div class="mv"><span>移到</span><select id="mvSel">${shelfOptions(w ? w.code : '')}</select><button class="btn sm" data-act="move">移过去</button></div>
+    <dl class="meta">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+    ${b.notes ? `<div class="notes"><b>备注</b><p>${esc(b.notes)}</p></div>` : ''}
+    ${b.summary ? `<details class="sum"><summary>内容简介</summary><p>${esc(b.summary)}</p></details>` : ''}`;
+  const im = dBody.querySelector('img.cover');
+  if (im) im.addEventListener('error', () => im.remove());
+  details.hidden = false;
+}
+details.addEventListener('click', e => {
+  const act = e.target.closest('[data-act]');
+  if (!act) return;
+  const k = selectedK, b = k && BOOK.get(k);
+  if (act.dataset.act === 'close') select(null);
+  else if (!b) return;
+  else if (act.dataset.act === 'undo') undoMove(k);
+  else if (act.dataset.act === 'move') {
+    const to = $('mvSel').value;
+    if (!to) return;
+    const cur = D.pos.get(k);
+    if (cur && cur.s === to) { toast(`已经在 ${to} 了`); return; }
+    moveBook(k, to, null);
+    locate(k);
+  }
+});
+
+/* ---------- 移动与排序 ---------- */
+// index 为 null：让目标层按自己的规则放（自动排序的层按排序规则，手动排过的层放在最后）
+function moveBook(k, to, index) {
+  const b = BOOK.get(k);
+  if (!b || !SHELF.has(to)) return;
+  if (to === b._loc) dropMove(k);
+  else setMove(k, { to, from: b.loc, at: Date.now() });
+  if (index != null && S.orders[to]) {
+    const list = D.byShelf.get(to).map(x => x.k).filter(x => x !== k);
+    list.splice(clamp(index, 0, list.length), 0, k);
+    setOrder(to, list);
+  }
+  save();
+  render();
+  toast(S.moves[k]
+    ? `《${b.title}》${locLabel(b)} → ${to}，已加进待同步清单`
+    : `《${b.title}》放回了 BookBuddy 里记录的 ${to}，不用再同步`, 4000);
+}
+function reorder(k, s, index) {
+  const list = D.byShelf.get(s).map(x => x.k);
+  const from = list.indexOf(k);
+  if (from < 0) return;
+  list.splice(from, 1);
+  if (from === index) return;
+  list.splice(clamp(index, 0, list.length), 0, k);
+  setOrder(s, list);
+  save();
+  render();
+}
+function undoMove(k) {
+  const b = BOOK.get(k);
+  if (!b || !S.moves[k]) return;
+  dropMove(k);
+  save();
+  render();
+  toast(`《${b.title}》回到了 ${locLabel(b)}`);
+}
+
+/* ---------- 指针：整理模式拖书 / 鼠标拖动画布 ---------- */
+let drag = null, pan = null, ghost = null;
+const marker = div('marker');
+stage.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (pinch || drag) return;
+  const sp = e.target.closest('.spine');
+  if (editing && sp) {
+    const touch = e.pointerType !== 'mouse';
+    drag = { k: sp.dataset.k, el: sp, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, on: false, sh: null, idx: null, touch };
+    // 触屏要先按住一会儿才拿起书，直接滑动就是滚动画布
+    if (touch) drag.timer = setTimeout(() => { if (drag && !drag.on) { startDrag(); moveGhost(); updateTarget(); } }, HOLD_MS);
+    else e.preventDefault();
+    return;
+  }
+  if (e.pointerType === 'mouse' && !e.target.closest('button, select, input, a')) {
+    pan = { id: e.pointerId, x0: e.clientX, y0: e.clientY, sl: stage.scrollLeft, st: stage.scrollTop, moved: false };
+  }
+});
+window.addEventListener('pointermove', e => {
+  if (pan && e.pointerId === pan.id) {
+    const dx = e.clientX - pan.x0, dy = e.clientY - pan.y0;
+    if (!pan.moved && Math.hypot(dx, dy) > 4) { pan.moved = true; document.body.classList.add('panning'); }
+    if (pan.moved) { stage.scrollLeft = pan.sl - dx; stage.scrollTop = pan.st - dy; }
+    return;
+  }
+  if (!drag || e.pointerId !== drag.id) return;
+  drag.x = e.clientX;
+  drag.y = e.clientY;
+  if (!drag.on) {
+    const dist = Math.hypot(drag.x - drag.x0, drag.y - drag.y0);
+    if (drag.touch) { if (dist > 8) cancelPending(); return; }
+    if (dist < 6) return;
+    startDrag();
+  }
+  e.preventDefault();
+  moveGhost();
+  updateTarget();
+}, { passive: false });
+window.addEventListener('pointerup', e => {
+  if (pan && e.pointerId === pan.id) {
+    if (pan.moved) suppressUntil = performance.now() + 300;
+    pan = null;
+    document.body.classList.remove('panning');
+  }
+  if (drag && e.pointerId === drag.id) endDrag(true);
+});
+window.addEventListener('pointercancel', e => {
+  if (pan && e.pointerId === pan.id) { pan = null; document.body.classList.remove('panning'); }
+  if (drag && e.pointerId === drag.id) endDrag(false);
+});
+function cancelPending() {
+  if (drag && !drag.on) { clearTimeout(drag.timer); drag = null; }
+}
+function startDrag() {
+  drag.on = true;
+  ghost = drag.el.cloneNode(true);
+  ghost.id = 'ghost';
+  ghost.classList.remove('sel', 'flash', 'match', 'lift');
+  document.body.appendChild(ghost);
+  drag.el.classList.add('lift');
+  // 拖动时先把详情面板收起来，免得挡住下面几层
+  if (!details.hidden) details.hidden = true;
+  drag.raf = requestAnimationFrame(autoScroll);
+}
+function moveGhost() {
+  const s = Math.max(z, 0.45), w = drag.el.offsetWidth * s, h = drag.el.offsetHeight * s;
+  ghost.style.transform = `translate(${drag.x - w / 2}px, ${drag.y - h * 0.8}px) scale(${s}) rotate(4deg)`;
+}
+function updateTarget() {
+  const hit = document.elementFromPoint(drag.x, drag.y);
+  const sh = hit && hit.closest ? hit.closest('.shelf') : null;
+  if (drag.sh && drag.sh !== sh) drag.sh.classList.remove('drop');
+  drag.sh = sh;
+  drag.idx = null;
+  if (!sh) { marker.remove(); return; }
+  sh.classList.add('drop');
+  const id = sh.dataset.s, cur = D.pos.get(drag.k);
+  const spines = [...sh.querySelectorAll('.spine')].filter(s => s !== drag.el);
+  let idx = 0;
+  if ((cur && cur.s === id) || S.orders[id]) {
+    // 同一层里调顺序，或者放进手动排过序的层：放在手指 / 鼠标指着的位置
+    for (const s of spines) {
+      const r = s.getBoundingClientRect();
+      if (r.left + r.width / 2 < drag.x) idx++;
+      else break;
+    }
+    drag.idx = idx;
+  } else {
+    // 放进自动排序的层：书会按排序规则落位，黄线直接标在它会落下的地方
+    const b = BOOK.get(drag.k), cmp = comparator(S.settings.sort);
+    idx = D.byShelf.get(id).filter(x => x.k !== drag.k && cmp(x, b) < 0).length;
+  }
+  const shr = sh.getBoundingClientRect();
+  const sx = !spines.length ? shr.left + (PAD + 1) * z
+    : idx < spines.length ? spines[idx].getBoundingClientRect().left - 0.5 * z
+    : spines[spines.length - 1].getBoundingClientRect().right + 1.5 * z;
+  marker.style.left = ((sx - shr.left) / z - 2) + 'px';
+  marker.style.bottom = BT + 'px';
+  marker.style.height = Math.min(U, sh.offsetHeight) - BT - 12 + 'px';
+  if (marker.parentNode !== sh) sh.appendChild(marker);
+}
+function autoScroll() {
+  if (!drag || !drag.on) return;
+  const r = visibleRect(), E = 48;
+  let dx = 0, dy = 0;
+  if (drag.x < r.left + E) dx = drag.x - (r.left + E);
+  else if (drag.x > r.left + r.width - E) dx = drag.x - (r.left + r.width - E);
+  if (drag.y < r.top + E) dy = drag.y - (r.top + E);
+  else if (drag.y > r.top + r.height - E) dy = drag.y - (r.top + r.height - E);
+  if (dx || dy) {
+    stage.scrollLeft += dx * 0.3;
+    stage.scrollTop += dy * 0.3;
+    updateTarget();
+  }
+  drag.raf = requestAnimationFrame(autoScroll);
+}
+function endDrag(commit) {
+  const d = drag;
+  drag = null;
+  if (!d) return;
+  clearTimeout(d.timer);
+  if (!d.on) return;
+  suppressUntil = performance.now() + 400;
+  cancelAnimationFrame(d.raf);
+  d.el.classList.remove('lift');
+  if (ghost) { ghost.remove(); ghost = null; }
+  marker.remove();
+  if (d.sh) d.sh.classList.remove('drop');
+  const to = d.sh && d.sh.dataset.s, cur = D.pos.get(d.k);
+  if (commit && to && cur && cur.s === to) reorder(d.k, to, d.idx);
+  else if (commit && to) moveBook(d.k, to, d.idx);
+  renderDetails();
+  if (syncDeferred) { syncDeferred = false; schedulePush(300); }
+}
+stage.addEventListener('click', e => {
+  if (performance.now() < suppressUntil) return;
+  const r = e.target.closest('[data-reset]');
+  if (r) {
+    resetOrder(r.dataset.reset);
+    save();
+    render();
+    toast(`${r.dataset.reset} 已恢复自动排序`);
+    return;
+  }
+  const sp = e.target.closest('.spine');
+  if (sp) select(sp.dataset.k === selectedK ? null : sp.dataset.k, true);
+  else if (selectedK) select(null);
+});
+function setEditing(on) {
+  editing = on;
+  document.body.classList.toggle('editing', on);
+  $('btnEdit').classList.toggle('on', on);
+  $('editText').textContent = COARSE ? '整理模式：按住书脊一下再拖动' : '整理模式：拖动书脊换位置';
+  if (on && !L.editTipShown) {
+    L.editTipShown = true;
+    saveLocal();
+    toast((COARSE ? '先按住书脊一下，等它拿起来再拖；直接滑动是滚动画布。\n' : '') +
+      '同一层里拖动只改顺序（记在这台设备上）；拖到别的层会加进「待同步」清单，之后到 BookBuddy 里照着改。', 8000);
+  }
+}
+$('btnEdit').onclick = () => setEditing(!editing);
+$('editDone').onclick = () => setEditing(false);
+
+/* ---------- 待同步清单 ---------- */
+function syncItems() {
+  return Object.entries(S.moves).map(([k, m]) => ({ k, m, b: BOOK.get(k) })).filter(x => x.b).sort((a, b) => a.m.at - b.m.at);
+}
+function renderSync() {
+  const items = syncItems();
+  $('syncCopy').disabled = !items.length;
+  $('syncBackup').hidden = !items.length || (L.sync && !L.sync.err) || items.every(x => x.m.at < L.backupAt);
+  $('syncList').innerHTML = items.length
+    ? '<li class="colhd">BookBuddy 里现在是 → 要改成</li>' + items.map(({ k, m, b }) =>
+      `<li data-k="${esc(k)}"><div class="tx"><div class="tt">${esc(b.title)}${b._x ? ` <small class="muted">${esc(b._x)}</small>` : ''}</div><div class="au">${esc(b.author)}</div>` +
+      (b.loc && !SHELF.has(b._loc) ? `<div class="bad">BookBuddy 里的「${esc(b.loc)}」书架上没有</div>` : '') + '</div>' +
+      `<div class="chg"><span class="loc">${esc(b.loc || '空')}</span>→<span class="loc acc">${esc(m.to)}</span></div>` +
+      '<div class="acts"><button class="btn sm" data-act="find">查看</button><button class="btn sm" data-act="undo">撤销</button></div></li>'
+    ).join('')
+    : '<li class="none">没有待同步的修改 ✓</li>';
+}
+$('btnSync').onclick = () => { renderSync(); dlgSync.showModal(); };
+$('syncList').addEventListener('click', e => {
+  const btn = e.target.closest('[data-act]'), li = e.target.closest('li[data-k]');
+  if (!btn || !li) return;
+  if (btn.dataset.act === 'undo') undoMove(li.dataset.k);
+  else { dlgSync.close(); locate(li.dataset.k); }
+});
+$('syncCopy').onclick = async () => {
+  const items = syncItems();
+  const text = `在 BookBuddy 里修改这些书的 Physical Location（共 ${items.length} 本）：\n` +
+    items.map(({ m, b }, i) => `${i + 1}. 《${b.title}${b._x ? ' ' + b._x : ''}》${b.author ? '（' + b.author + '）' : ''}：${b.loc || '空'} → ${m.to}`).join('\n');
+  toast(await copyText(text) ? '清单已复制' : '复制失败，请手动抄一下');
+};
+$('syncImport').onclick = () => { dlgSync.close(); pickFile(); };
+$('syncBackupBtn').onclick = backup;
+async function copyText(t) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* 退回到旧办法 */ }
+  }
+  // 弹窗打开时，弹窗外面的元素选不中，所以临时文本框要放进弹窗里
+  const host = document.querySelector('dialog[open]') || document.body;
+  const ta = document.createElement('textarea');
+  ta.value = t;
+  ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed;left:0;top:0;opacity:0;font-size:16px';
+  host.appendChild(ta);
+  ta.select();
+  ta.setSelectionRange(0, t.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
+}
+
+/* ---------- 设置菜单 ---------- */
+function openMenu() {
+  const m = S.meta;
+  $('mMeta').textContent = m
+    ? `上次导入：${new Date(m.at).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' })}${m.name ? ' · ' + m.name : ''} · ${m.n} 本`
+    : '还没有导入过书目。';
+  $('mSort').value = S.settings.sort;
+  $('mResetOrders').disabled = !Object.keys(S.orders).length;
+  renderSyncStatus();
+  dlgMenu.showModal();
+}
+$('btnMenu').onclick = openMenu;
+$('mSort').onchange = e => { S.settings.sort = e.target.value; S.settings.sortAt = Date.now(); save(); render(); };
+$('mResetOrders').onclick = () => {
+  if (!confirm('清除所有层的手动排序，全部改回自动排序？')) return;
+  for (const id of Object.keys(S.orders)) resetOrder(id);
+  save();
+  render();
+  $('mResetOrders').disabled = true;
+  toast('已清除所有手动排序');
+};
+$('mBackup').onclick = backup;
+$('mClear').onclick = () => {
+  if (!confirm(L.sync ? '清空这台设备上的数据，并在这台设备上停止同步？云端和 BookBuddy 里的数据不受影响。'
+    : '清空这台设备上的书目、手动排序和待同步清单？BookBuddy 里的数据不受影响。')) return;
+  L.sync = null;
+  saveLocal();
+  S = blank();
+  selectedK = null;
+  rebuildIndex();
+  save();
+  render();
+  fit();
+  dlgMenu.close();
+};
+const pickFile = () => { fileIn.value = ''; fileIn.click(); };
+$('mImport').onclick = () => { dlgMenu.close(); pickFile(); };
+$('mRestore').onclick = () => { dlgMenu.close(); pickFile(); };
+$('emptyImport').onclick = pickFile;
+fileIn.onchange = () => { if (fileIn.files[0]) importFile(fileIn.files[0]); };
+for (const d of [dlgSync, dlgMenu, dlgCloud]) {
+  d.addEventListener('click', e => {
+    if (e.target.closest('[data-close]')) { d.close(); return; }
+    if (e.target !== d) return;
+    // 只有点在弹窗外面（背景上）才关闭
+    const r = d.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
+  });
+}
+$('hintOk').onclick = () => { L.hintAt = Date.now(); saveLocal(); if (renderHint() && fitMode) fit(fitAll); };
+
+/* ---------- 拖文件进窗口导入 ---------- */
+let fileDepth = 0;
+const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+window.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); fileDepth++; document.body.classList.add('filedrag'); });
+window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener('dragleave', e => {
+  if (!hasFiles(e)) return;
+  if (--fileDepth <= 0) { fileDepth = 0; document.body.classList.remove('filedrag'); }
+});
+window.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  fileDepth = 0;
+  document.body.classList.remove('filedrag');
+  const f = e.dataTransfer.files[0];
+  if (f) importFile(f);
+});
+
+/* ---------- 另一个窗口改了数据 ---------- */
+window.addEventListener('storage', e => {
+  if (e.key === LOCAL_KEY) { L = loadLocal(); renderSyncStatus(); return; }
+  if (e.key !== STORE_KEY || drag) return;
+  S = loadState();
+  rebuildIndex();
+  ensureColors();
+  if (selectedK && !BOOK.has(selectedK)) selectedK = null;
+  render();
+});
+
+/* ---------- 键盘 ---------- */
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
+  if (e.key === '/' && !typing) { e.preventDefault(); qEl.focus(); }
+  else if (e.key === 'Escape' && !typing && !dlgMenu.open && !dlgSync.open) {
+    if (selectedK) select(null);
+    else if (editing) setEditing(false);
+  }
+});
+
+/* ---------- 多设备同步（存在自己的 GitHub 私有仓库里） ---------- */
+// 两份数据逐条合并：书目跟着较新的那次导入走；每条待同步、每层的手动排序取时间较新的一边（包括撤销和恢复自动排序）
+function mergeStates(a, b) {
+  const out = blank(), at = s => (s.meta ? s.meta.at : 0);
+  const src = at(b) > at(a) ? b : a, other = src === a ? b : a;
+  out.books = src.books;
+  out.meta = src.meta;
+  out.settings.colors = Object.assign({}, other.settings.colors, src.settings.colors);
+  const st = b.settings.sortAt > a.settings.sortAt ? b : a;
+  out.settings.sort = st.settings.sort;
+  out.settings.sortAt = st.settings.sortAt;
+  const keep = Date.now() - 180 * 864e5;   // 半年前的删除记录不用再留着
+  for (const k of new Set([a, b].flatMap(x => [...Object.keys(x.moves), ...Object.keys(x.gone)]))) {
+    let best = null, t = -1;
+    for (const x of [a, b]) {
+      if (x.moves[k] && x.moves[k].at > t) { best = x.moves[k]; t = best.at; }
+      if (x.gone[k] >= t) { best = null; t = x.gone[k]; }
+    }
+    if (best) out.moves[k] = best;
+    else if (t > keep) out.gone[k] = t;
+  }
+  for (const id of new Set([a, b].flatMap(x => [...Object.keys(x.orders), ...Object.keys(x.orderAt)]))) {
+    const x = (b.orderAt[id] || 0) > (a.orderAt[id] || 0) ? b : a;
+    if (x.orders[id]) out.orders[id] = x.orders[id];
+    if (x.orderAt[id]) out.orderAt[id] = x.orderAt[id];
+  }
+  return out;
+}
+// 和键的顺序无关的序列化，用来判断两份数据是不是一样
+function canon(v) {
+  if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+  if (v && typeof v === 'object') {
+    return '{' + Object.keys(v).filter(k => !DERIVED.has(k) && v[k] !== undefined).sort()
+      .map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v);
+}
+function toB64(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function fromB64(b64) {
+  const bin = atob(b64.replace(/\s/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+async function gh(method, path, { body, etag, accept, cfg = L.sync } = {}) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 20000);
+  const headers = { Authorization: 'Bearer ' + cfg.token, Accept: accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  if (body) headers['Content-Type'] = 'application/json';
+  if (etag) headers['If-None-Match'] = etag;
+  try {
+    return await fetch(GH_API + path, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: 'no-store', signal: ctl.signal });
+  } catch (e) {
+    const n = new Error('没有网络');      // 没网、超时
+    n.name = 'NetworkError';
+    throw n;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+const filePath = c => `/repos/${c.repo}/contents/${SYNC_FILE}`;
+function ghError(r) {
+  if (r.status === 401) return '令牌无效或者已经过期，请在设置里重新设置同步';
+  if (r.status === 403 || r.status === 404) return '令牌没有这个仓库的读写权限（Contents 要设成 Read and write）';
+  return `GitHub 返回了错误 ${r.status}，稍后会再试`;
+}
+
+let syncChain = Promise.resolve(), syncBusy = false, syncDeferred = false, lastSyncTry = 0, pushTimer = 0;
+// 拉取云端：有变化就和本机合并
+async function pullOnce(c) {
+  const r = await gh('GET', filePath(c), { etag: c.sha && c.etag, cfg: c });
+  if (r.status === 304) return;
+  if (r.status === 404) {                       // 云端还没有数据文件（第一次同步，或者被删了）
+    c.sha = c.etag = null;
+    if (S.books.length || Object.keys(S.moves).length) c.dirty = true;
+    return;
+  }
+  if (!r.ok) throw new Error(ghError(r));
+  const j = await r.json();
+  c.etag = r.headers.get('ETag');
+  if (j.sha === c.sha) return;
+  let text = j.encoding === 'base64' && j.content ? fromB64(j.content) : null;
+  if (text == null) {                           // 超过 1MB 的文件要单独取原文
+    const raw = await gh('GET', filePath(c), { accept: 'application/vnd.github.raw+json', cfg: c });
+    if (!raw.ok) throw new Error(ghError(raw));
+    text = await raw.text();
+  }
+  let d = null;
+  try { d = JSON.parse(text); } catch (e) { d = null; }
+  if (!d || d.app !== 'vshelf' || !d.state) throw new Error(`云端的 ${SYNC_FILE} 不是虚拟书架的数据，没有动它`);
+  const remote = normalizeState(d.state), merged = mergeStates(S, remote), cm = canon(merged);
+  c.sha = j.sha;
+  c.dirty = cm !== canon(remote);
+  if (cm !== canon(S)) applyState(merged, d.device);
+}
+// 上传本机数据；云端在这期间被别的设备改过的话，先合并再传
+async function pushOnce(c) {
+  for (let i = 0; i < 4; i++) {
+    const body = {
+      message: `更新书架（${DEVICE}）`,
+      content: toB64(JSON.stringify({ app: 'vshelf', v: 2, device: DEVICE, savedAt: new Date().toISOString(), state: S }, replacer)),
+    };
+    if (c.sha) body.sha = c.sha;
+    const r = await gh('PUT', filePath(c), { body, cfg: c });
+    if (r.ok) {
+      const j = await r.json();
+      c.sha = j.content.sha;
+      c.etag = null;
+      c.dirty = false;
+      return;
+    }
+    if (r.status !== 409 && r.status !== 422) throw new Error(ghError(r));
+    c.etag = null;
+    await pullOnce(c);
+    if (!c.dirty) return;
+  }
+  throw new Error('和云端的数据合并了几次都没成功，稍后会再试');
+}
+function applyState(next, from) {
+  const wasEmpty = !S.books.length;
+  S = next;
+  rebuildIndex();
+  ensureColors();
+  if (selectedK && !BOOK.has(selectedK)) selectedK = null;
+  persist();
+  render();
+  if (wasEmpty) { fit(); requestPersist(); toast(`已从云端同步：${S.books.length} 本书，${Object.keys(S.moves).length} 项待同步`, 5000); }
+  else toast(`已同步${from ? `「${from}」` : '其它设备'}上的修改`);
+}
+async function doSync() {
+  const c = L.sync;
+  if (!c) return '';
+  if (drag && drag.on) { syncDeferred = true; return ''; }   // 拖书的时候先不动画面
+  lastSyncTry = Date.now();
+  syncBusy = true;
+  renderSyncStatus();
+  let err = '';
+  try {
+    await pullOnce(c);
+    if (L.sync === c && c.dirty) await pushOnce(c);
+    c.at = Date.now();
+    c.offline = false;
+  } catch (e) {
+    const offline = !!e && e.name === 'NetworkError';
+    err = offline ? '' : str((e && e.message) || e);
+    c.offline = offline;
+    if (err && err !== c.err) toast('⚠️ 同步失败：' + err, 8000);
+  }
+  c.err = err;
+  syncBusy = false;
+  if (L.sync === c) saveLocal();
+  renderSyncStatus();
+  return err;
+}
+// 同一时间只跑一个同步
+function syncNow() {
+  const p = syncChain.then(doSync);
+  syncChain = p.catch(() => {});
+  return p;
+}
+function schedulePush(ms = PUSH_DELAY) {
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(syncNow, ms);
+}
+const ago = t => {
+  const s = (Date.now() - t) / 1000;
+  return s < 60 ? '刚刚' : s < 3600 ? `${Math.floor(s / 60)} 分钟前` : s < 86400 ? `${Math.floor(s / 3600)} 小时前` : new Date(t).toLocaleDateString('zh-CN');
+};
+function renderSyncStatus() {
+  const c = L.sync;
+  $('mSyncOff').hidden = !!c;
+  $('mSyncOn').hidden = !c;
+  $('btnMenu').classList.toggle('warn', !!(c && c.err));
+  $('mSyncStatus').textContent = !c ? '没有开启。开启后，书目、层内排序和待同步清单会在你的 Mac、iPhone、iPad 之间自动同步。'
+    : `已连接 ${c.repo} · ` + (syncBusy ? '正在同步…' : c.err ? '⚠️ ' + c.err
+      : c.offline ? (c.dirty ? '没有网络，有修改还没上传，联网后会自动同步' : '没有网络，联网后会自动同步')
+      : c.dirty ? '有修改等着上传…' : c.at ? `${ago(c.at)}同步过` : '还没同步过');
+}
+async function connectSync(repo, token) {
+  let r;
+  try { r = await gh('GET', `/repos/${repo}`, { cfg: { token } }); } catch (e) { throw new Error('连不上 GitHub，检查一下网络'); }
+  if (r.status === 401) throw new Error('令牌无效或者已经过期');
+  if (!r.ok) throw new Error('找不到这个仓库，或者令牌没有访问它的权限');
+  const info = await r.json();
+  if (!info.private) throw new Error('这个仓库是公开的，书目会被所有人看到。请换成私有（Private）仓库。');
+  L.sync = { repo: info.full_name || repo, token, sha: null, etag: null, dirty: false, at: 0, err: '', offline: false };
+  saveLocal();
+  const err = await syncNow();
+  if (err || (L.sync && L.sync.offline)) {
+    L.sync = null;
+    saveLocal();
+    renderSyncStatus();
+    throw new Error(err || '连不上 GitHub，检查一下网络');
+  }
+  toast(`同步已开启：${S.books.length} 本书，${Object.keys(S.moves).length} 项待同步。\n在其它设备上点「⋯ → 设置同步」，粘贴这台设备的同步码就行。`, 7000);
+}
+const syncCode = () => `vshelf-sync:${L.sync.repo}:${L.sync.token}`;
+function parseSyncCode(t) {
+  const m = str(t).trim().match(/^vshelf-sync:([\w.-]+\/[\w.-]+):(\S+)$/);
+  return m && { repo: m[1], token: m[2] };
+}
+function openCloud() {
+  $('cRepo').value = '';
+  $('cToken').value = '';
+  $('cErr').hidden = true;
+  dlgCloud.showModal();
+}
+for (const id of ['cRepo', 'cToken']) {
+  $(id).addEventListener('input', e => {
+    const c = parseSyncCode(e.target.value);
+    if (c) { $('cRepo').value = c.repo; $('cToken').value = c.token; }
+  });
+}
+$('cConnect').onclick = async () => {
+  const btn = $('cConnect'), errEl = $('cErr');
+  const fail = msg => { errEl.textContent = msg; errEl.hidden = false; };
+  const repo = $('cRepo').value.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+  const token = $('cToken').value.trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return fail('仓库要写成「用户名/仓库名」，比如 yourname/bookshelf-data');
+  if (!token) return fail('请填写访问令牌');
+  errEl.hidden = true;
+  btn.disabled = true;
+  btn.textContent = '正在连接…';
+  try {
+    await connectSync(repo, token);
+    dlgCloud.close();
+  } catch (e) {
+    fail(str(e && e.message));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '连接';
+  }
+};
+$('mSyncSetup').onclick = () => { dlgMenu.close(); openCloud(); };
+$('emptyCloud').onclick = openCloud;
+$('mSyncNow').onclick = async () => {
+  const err = await syncNow();
+  if (!err) toast(L.sync && L.sync.offline ? '没有网络，联网后会自动同步' : '已同步');
+};
+$('mSyncCode').onclick = async () => {
+  toast(await copyText(syncCode())
+    ? '同步码已复制。在另一台设备上打开虚拟书架，点「⋯ → 设置同步」粘贴进去（同一个 Apple ID 的设备可以直接粘贴）。\n同步码里包含令牌，不要发给别人。'
+    : '复制失败', 8000);
+};
+$('mSyncStop').onclick = () => {
+  if (!confirm('在这台设备上停止同步？这台设备上的数据会保留，云端的数据也不会删除。')) return;
+  clearTimeout(pushTimer);
+  L.sync = null;
+  saveLocal();
+  renderSyncStatus();
+  renderHint();
+  toast('这台设备已停止同步');
+};
+// 回到这个页面、联网、或者每隔一分钟，看看别的设备有没有改过
+const syncSoon = () => { if (L.sync && Date.now() - lastSyncTry > 5000) syncNow(); };
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') syncSoon();
+  else if (L.sync && L.sync.dirty) syncNow();
+});
+window.addEventListener('focus', syncSoon);
+window.addEventListener('online', () => { if (L.sync) syncNow(); });
+setInterval(() => { if (document.visibilityState === 'visible') syncSoon(); }, 60000);
+
+/* ---------- 启动 ---------- */
+rebuildIndex();
+ensureColors();
+render();
+fit();
+if ('serviceWorker' in navigator && ON_WEB) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (L.sync) syncNow();
+window.vshelf = { importCsv, state: () => S, local: () => L, syncNow, locate, setEditing, moveBook, fit };
+})();
+</script>
+</body>
+</html>

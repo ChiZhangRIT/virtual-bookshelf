@@ -454,9 +454,9 @@ body.filedrag #dropHint { display: flex; }
       <summary>第一次设置的步骤</summary>
       <ol class="steps">
         <li>在 GitHub 上新建一个仓库，比如叫 <b>bookshelf-data</b>，选 <b>Private</b>，并勾上「Add a README file」。</li>
-        <li>打开 GitHub 的 Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token。</li>
+        <li>打开<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">新建令牌的页面</a>（也就是点 GitHub 右上角的<b>头像</b> → Settings → 左侧栏最底下的 Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token；注意不是仓库里的 Settings）。</li>
         <li>Repository access 选 <b>Only select repositories</b>，只选刚建的仓库；Permissions 里把 <b>Contents</b> 设成 <b>Read and write</b>。</li>
-        <li>生成后复制令牌（github_pat_ 开头），和仓库名一起填到下面。</li>
+        <li>生成后马上复制令牌（github_pat_ 开头，离开页面就看不到了），和仓库名一起填到下面。</li>
       </ol>
     </details>
     <label class="inp">仓库<input id="cRepo" placeholder="你的用户名/bookshelf-data" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
@@ -1582,9 +1582,18 @@ function moveGhost() {
   const s = Math.max(z, 0.45), w = drag.el.offsetWidth * s, h = drag.el.offsetHeight * s;
   ghost.style.transform = `translate(${drag.x - w / 2}px, ${drag.y - h * 0.8}px) scale(${s}) rotate(4deg)`;
 }
+// 指在书柜侧板上、或者两个书柜之间的缝里时，算作旁边那一层（这样拖到最左、最右端不用对得很准）
+function shelfNear(x, y) {
+  const slack = (ST + GAP / 2) * z;
+  for (const el of caseEl.querySelectorAll('.shelf')) {
+    const r = el.getBoundingClientRect();
+    if (y >= r.top && y < r.bottom && x >= r.left - slack && x < r.right + slack) return el;
+  }
+  return null;
+}
 function updateTarget() {
   const hit = document.elementFromPoint(drag.x, drag.y);
-  const sh = hit && hit.closest ? hit.closest('.shelf') : null;
+  const sh = (hit && hit.closest ? hit.closest('.shelf') : null) || (hit && caseEl.contains(hit) ? shelfNear(drag.x, drag.y) : null);
   if (drag.sh && drag.sh !== sh) drag.sh.classList.remove('drop');
   drag.sh = sh;
   drag.idx = null;

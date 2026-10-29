@@ -89,11 +89,12 @@ iPhone / iPad 没法直接打开本地的 HTML 文件，需要把这个仓库发
 ### 第一次设置（只需要做一次）
 
 1. 在 GitHub 上新建一个仓库，比如叫 `bookshelf-data`，选 **Private**，勾上「Add a README file」
-2. 打开 GitHub 的 **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**
+2. 打开新建令牌的页面：<https://github.com/settings/personal-access-tokens/new>
+   （也就是点 GitHub 右上角的**头像** → **Settings** → 左侧栏最底下的 **Developer settings** → **Personal access tokens → Fine-grained tokens → Generate new token**。注意是账号的 Settings，不是仓库里的 Settings）
    - **Repository access** 选 **Only select repositories**，只选 `bookshelf-data`
-   - **Permissions → Repository permissions → Contents** 设成 **Read and write**（其它都不用开）
+   - **Permissions** 里找到 **Contents**，设成 **Read and write**（新版页面可能要先点 **Add permissions**；其它都不用开）
    - 有效期可以设长一点；过期以后虚拟书架会提示，重新生成一个填进去就行
-3. 复制生成的令牌（`github_pat_` 开头）
+3. 马上复制生成的令牌（`github_pat_` 开头，离开页面就看不到了）
 4. 在 Mac 上打开虚拟书架 → `⋯` → **设置同步…**，填入 `你的用户名/bookshelf-data` 和令牌，点「连接」
 
 ### 其它设备

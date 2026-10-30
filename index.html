@@ -120,6 +120,7 @@ button { cursor: pointer; }
 }
 .chip i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); }
 .chip small { color: var(--muted); }
+.chip .en { color: var(--muted); font-size: 11.5px; margin-left: -2px; }
 .chip.on { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
 .chip.clear { background: var(--fg); border-color: var(--fg); color: var(--bg); }
 #hint {
@@ -170,12 +171,22 @@ body.editing .shelf.top.empty .plate { display: block; }
   font: 650 11px/1 -apple-system, sans-serif; padding: 2px 6px;
 }
 body.editing .reord { display: block; }
+.reord.add { background: #f1e6cf; color: #4a3826; }
+/* 空位：左边的书靠左，右边的书靠右 */
+.gap { flex: 1 1 0; min-width: 0; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-radius: 4px; }
+.gap > * { display: none; }
+body.editing .gap { min-width: 30px; margin: 10px 2px 2px; border: 2px dashed rgba(255, 210, 122, .75); cursor: grab; }
+body.editing .gap > * { display: block; }
+.gap span { color: #f1e6cf; font-size: 12px; white-space: nowrap; }
+.gap .gx { border: 0; border-radius: 11px; width: 22px; height: 22px; padding: 0; background: rgba(0, 0, 0, .35); color: #fff; font-size: 11px; }
+.gap.lift { opacity: .3; }
+#ghost.gapghost { padding: 6px 10px; border-radius: 8px; border: 2px dashed var(--hl); background: rgba(60, 40, 20, .85); color: #f1e6cf; font-size: 13px; }
 .books { position: absolute; left: 6px; right: 6px; top: 0; bottom: 0; display: flex; align-items: flex-end; gap: 1px; }
 
 /* ---------- 书脊 ---------- */
 .spine {
   position: relative; flex: none; display: flex; flex-direction: column; justify-content: center;
-  writing-mode: vertical-rl; text-orientation: mixed; padding: 10px 0; overflow: hidden;
+  writing-mode: vertical-rl; text-orientation: mixed; padding: 6px 0; overflow: hidden;
   border-radius: 2px 2px 1px 1px; background-color: var(--c);
   background-image: linear-gradient(90deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 28%, rgba(0, 0, 0, 0) 72%, rgba(0, 0, 0, .24));
   box-shadow: inset 0 9px 0 -7px rgba(255, 255, 255, .28), inset 0 -11px 0 -8px rgba(255, 255, 255, .22), 1px 0 1px rgba(0, 0, 0, .3);
@@ -183,9 +194,9 @@ body.editing .reord { display: block; }
   cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   transition: opacity .2s, filter .2s, transform .18s;
 }
-.spine span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
-.spine .a { font-size: 9.5px; opacity: .85; margin-block-start: 2px; }
-.spine.thin { font-size: 10px; padding: 8px 0; }
+.spine span { display: block; flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; line-height: 1.12; }
+.spine span.wrap { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; text-wrap: balance; }
+.spine .a { opacity: .85; margin-block-start: 1px; }
 .spine.pending::after {
   content: ""; position: absolute; left: 0; right: 0; top: 0; height: 7px;
   background: repeating-linear-gradient(135deg, var(--accent) 0 3px, #ffd27a 3px 6px);
@@ -240,6 +251,7 @@ body.editing .spine { cursor: grab; }
 }
 body.editing #editBar { display: flex; }
 #editBar span { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 480px) { #editBar { white-space: normal; border-radius: 16px; } #editBar span { text-overflow: clip; } }
 #editBar button { flex: none; border: 0; border-radius: 14px; height: 28px; padding: 0 14px; background: var(--accent); color: #fff; }
 #empty { position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: none; }
 #empty .card {
@@ -309,6 +321,8 @@ dialog section + section { margin-top: 18px; padding-top: 14px; border-top: 1px 
 dialog h3 { margin: 0 0 6px; font-size: 14px; }
 dialog p { margin: 6px 0 10px; }
 .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.field.check { margin-top: 10px; }
+.field input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
 .field select { height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); padding: 0 6px; font-size: 16px; max-width: 62%; }
 .row2 { display: flex; gap: 8px; }
 .row2 .btn { flex: 1; }
@@ -354,80 +368,90 @@ body.filedrag #dropHint { display: flex; }
 </head>
 <body>
 <header id="bar">
-  <div class="brand">虚拟书架</div>
+  <div class="brand" data-i18n="app.title">虚拟书架</div>
   <div id="searchWrap">
-    <input id="q" type="text" inputmode="search" enterkeyhint="search" placeholder="搜索书名、作者…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-    <button id="qClear" class="qclear" aria-label="清除搜索" hidden>✕</button>
+    <input id="q" type="text" inputmode="search" enterkeyhint="search" placeholder="搜索书名、作者…" data-i18n-ph="search.ph" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <button id="qClear" class="qclear" aria-label="清除搜索" data-i18n-aria="search.clear" hidden>✕</button>
     <div id="results" hidden></div>
   </div>
-  <button id="btnEdit" class="btn">整理</button>
-  <button id="btnSync" class="btn">待同步 <b id="syncN">0</b></button>
-  <button id="btnMenu" class="btn" aria-label="设置">⋯</button>
+  <button id="btnEdit" class="btn" data-i18n="bar.edit">整理</button>
+  <button id="btnSync" class="btn"><span data-i18n="bar.sync">待同步</span> <b id="syncN">0</b></button>
+  <button id="btnMenu" class="btn" aria-label="设置" data-i18n-aria="menu.h">⋯</button>
 </header>
 <nav id="legend"></nav>
-<div id="hint" hidden><span id="hintText"></span><button class="btn sm" id="hintOk">知道了</button></div>
+<div id="hint" hidden><span id="hintText"></span><button class="btn sm" id="hintOk" data-i18n="hint.ok">知道了</button></div>
 <main id="main">
   <div id="stage"><div id="sizer"><div id="case"></div></div></div>
-  <div id="editBar"><span id="editText">整理模式：拖动书脊换位置</span><button id="editDone">完成</button></div>
-  <div id="zoom"><button id="zOut" aria-label="缩小">−</button><button id="zFit">看全部</button><button id="zIn" aria-label="放大">+</button></div>
+  <div id="editBar"><span id="editText">整理模式：拖动书脊换位置</span><button id="editDone" data-i18n="edit.done">完成</button></div>
+  <div id="zoom"><button id="zOut" aria-label="缩小" data-i18n-aria="zoom.out">−</button><button id="zFit" data-i18n="zoom.fit">看全部</button><button id="zIn" aria-label="放大" data-i18n-aria="zoom.in">+</button></div>
   <div id="empty" hidden>
     <div class="card">
-      <h2>先导入你的书目</h2>
-      <p>在 BookBuddy 里把书库导出成 CSV 文件，然后在这里导入。</p>
+      <h2 data-i18n="empty.h">先导入你的书目</h2>
+      <p data-i18n="empty.p">在 BookBuddy 里把书库导出成 CSV 文件，然后在这里导入。</p>
       <p id="emptyIOS" class="small" hidden></p>
-      <div class="acts"><button class="btn primary" id="emptyImport">导入 BookBuddy CSV</button><button class="btn" id="emptyCloud">从其他设备同步</button></div>
-      <p class="muted small">在 Mac 上也可以直接把 CSV 文件拖进这个窗口。<br>数据保存在这台设备的浏览器里；开启多设备同步后，会另存一份到你自己的 GitHub 私有仓库。</p>
+      <div class="acts"><button class="btn primary" id="emptyImport" data-i18n="import.csv">导入 BookBuddy CSV</button><button class="btn" id="emptyCloud" data-i18n="empty.cloud">从其他设备同步</button></div>
+      <p class="muted small" data-i18n-html="empty.note">在 Mac 上也可以直接把 CSV 文件拖进这个窗口。<br>数据保存在这台设备的浏览器里；开启多设备同步后，会另存一份到你自己的 GitHub 私有仓库。</p>
     </div>
   </div>
   <aside id="details" hidden>
-    <button class="x" data-act="close" aria-label="关闭">✕</button>
+    <button class="x" data-act="close" aria-label="关闭" data-i18n-aria="close">✕</button>
     <div id="dBody"></div>
   </aside>
 </main>
 
 <dialog id="dlgSync">
-  <div class="dh"><h2>待同步到 BookBuddy</h2><button class="x" data-close aria-label="关闭">✕</button></div>
+  <div class="dh"><h2 data-i18n="sync.h">待同步到 BookBuddy</h2><button class="x" data-close aria-label="关闭" data-i18n-aria="close">✕</button></div>
   <div class="db">
-    <p class="muted small">这些书在虚拟书架上换了位置，但 BookBuddy 里的 Physical Location 还是旧的。请在 BookBuddy 里照着改，改完重新导出 CSV 再导入，对应的条目会自动消掉。</p>
-    <p class="small" id="syncBackup" hidden>这个清单只保存在这台设备上，建议<button class="link" id="syncBackupBtn">导出一份备份</button>。</p>
+    <p class="muted small" data-i18n="sync.p">这些书在虚拟书架上换了位置，但 BookBuddy 里的 Physical Location 还是旧的。请在 BookBuddy 里照着改，改完重新导出 CSV 再导入，对应的条目会自动消掉。</p>
+    <p class="small" id="syncBackup" data-i18n-html="sync.backup" hidden>这个清单只保存在这台设备上，建议<button class="link" id="syncBackupBtn">导出一份备份</button>。</p>
     <ul id="syncList" class="slist"></ul>
   </div>
-  <div class="df"><button class="btn" id="syncImport">导入新的 CSV</button><span class="sp"></span><button class="btn" id="syncCopy">复制清单</button><button class="btn primary" data-close>好</button></div>
+  <div class="df"><button class="btn" id="syncImport" data-i18n="sync.import">导入新的 CSV</button><span class="sp"></span><button class="btn" id="syncCopy" data-i18n="sync.copy">复制清单</button><button class="btn primary" data-close data-i18n="ok">好</button></div>
 </dialog>
 
 <dialog id="dlgMenu">
-  <div class="dh"><h2>设置</h2><button class="x" data-close aria-label="关闭">✕</button></div>
+  <div class="dh"><h2 data-i18n="menu.h">设置</h2><button class="x" data-close aria-label="关闭" data-i18n-aria="close">✕</button></div>
   <div class="db">
     <section>
-      <button class="btn primary wide" id="mImport">导入 BookBuddy CSV</button>
+      <button class="btn primary wide" id="mImport" data-i18n="import.csv">导入 BookBuddy CSV</button>
       <p class="muted small" id="mMeta"></p>
     </section>
     <section>
-      <h3>多设备同步</h3>
+      <h3 data-i18n="cloud.h">多设备同步</h3>
       <p class="muted small" id="mSyncStatus"></p>
-      <div class="row2" id="mSyncOff"><button class="btn" id="mSyncSetup">设置同步…</button></div>
-      <div class="row2" id="mSyncOn" hidden><button class="btn" id="mSyncNow">立即同步</button><button class="btn" id="mSyncCode">复制同步码</button><button class="btn danger" id="mSyncStop">停止同步</button></div>
+      <div class="row2" id="mSyncOff"><button class="btn" id="mSyncSetup" data-i18n="cloud.setup">设置同步…</button></div>
+      <div class="row2" id="mSyncOn" hidden><button class="btn" id="mSyncNow" data-i18n="cloud.now">立即同步</button><button class="btn" id="mSyncCode" data-i18n="cloud.code">复制同步码</button><button class="btn danger" id="mSyncStop" data-i18n="cloud.stop">停止同步</button></div>
     </section>
     <section>
-      <label class="field"><span>层内自动排序</span>
-        <select id="mSort">
-          <option value="genre">按分类（同系列放一起）</option>
-          <option value="title">按书名</option>
-          <option value="author">按作者</option>
-          <option value="added">按加入 BookBuddy 的时间</option>
+      <label class="field"><span data-i18n="lang.label">界面语言</span>
+        <select id="mLang">
+          <option value="zh-Hans">简体中文</option>
+          <option value="zh-Hant">繁體中文</option>
+          <option value="en">English</option>
         </select>
       </label>
-      <p class="muted small">在整理模式里手动拖过顺序的层，会保持你排好的顺序。</p>
-      <button class="btn wide" id="mResetOrders">清除所有手动排序</button>
+      <label class="field check"><span data-i18n="genreEn.label">分类名称同时显示英文</span><input type="checkbox" id="mGenreEn"></label>
     </section>
     <section>
-      <h3>换设备 / 备份</h3>
-      <p class="muted small">导出一个备份文件，可以留作存档，或者在另一台设备上恢复。没开同步的话，书目、手动排序和待同步清单都只保存在这台设备上。</p>
-      <div class="row2"><button class="btn" id="mBackup">导出备份</button><button class="btn" id="mRestore">从备份恢复</button></div>
+      <label class="field"><span data-i18n="sort.label">层内自动排序</span>
+        <select id="mSort">
+          <option value="genre" data-i18n="sort.genre">按分类（同系列放一起）</option>
+          <option value="title" data-i18n="sort.title">按书名</option>
+          <option value="author" data-i18n="sort.author">按作者</option>
+          <option value="added" data-i18n="sort.added">按加入 BookBuddy 的时间</option>
+        </select>
+      </label>
+      <p class="muted small" data-i18n="sort.note">在整理模式里手动拖过顺序的层，会保持你排好的顺序。</p>
+      <button class="btn wide" id="mResetOrders" data-i18n="sort.reset">清除所有手动排序</button>
     </section>
     <section>
-      <h3>使用说明</h3>
-      <ul class="help">
+      <h3 data-i18n="backup.h">换设备 / 备份</h3>
+      <p class="muted small" data-i18n="backup.p">导出一个备份文件，可以留作存档，或者在另一台设备上恢复。没开同步的话，书目、手动排序和待同步清单都只保存在这台设备上。</p>
+      <div class="row2"><button class="btn" id="mBackup" data-i18n="backup.export">导出备份</button><button class="btn" id="mRestore" data-i18n="backup.restore">从备份恢复</button></div>
+    </section>
+    <section>
+      <h3 data-i18n="help.h">使用说明</h3>
+      <ul class="help" data-i18n-html="help.items">
         <li><b>位置怎么写：</b>书柜字母加层号，层号从下往上数，比如 A3、B5、C6。A7、C7 是柜顶上。</li>
         <li><b>更新书目：</b>在 BookBuddy 里改好后重新导出 CSV 再导入。手动排序和待同步清单都会保留。</li>
         <li><b>找书：</b>可以搜书名、作者、系列或 ISBN，简体繁体都能搜到。点搜索结果会跳到那本书。点上方的分类可以只看某一类。</li>
@@ -440,35 +464,35 @@ body.filedrag #dropHint { display: flex; }
       </ul>
     </section>
     <section>
-      <button class="btn danger wide" id="mClear">清空这台设备上的数据</button>
+      <button class="btn danger wide" id="mClear" data-i18n="clear.btn">清空这台设备上的数据</button>
     </section>
   </div>
 </dialog>
 
 <dialog id="dlgCloud">
-  <div class="dh"><h2>设置多设备同步</h2><button class="x" data-close aria-label="关闭">✕</button></div>
+  <div class="dh"><h2 data-i18n="cloudDlg.h">设置多设备同步</h2><button class="x" data-close aria-label="关闭" data-i18n-aria="close">✕</button></div>
   <div class="db">
-    <p class="muted small">书目、层内排序和待同步清单会保存在你自己的 GitHub 私有仓库里，每台设备打开时自动同步。</p>
-    <p class="small"><b>已经在别的设备上设置过：</b>在那台设备上点「⋯ → 复制同步码」，粘贴到下面任意一个框里。</p>
+    <p class="muted small" data-i18n="cloudDlg.p">书目、层内排序和待同步清单会保存在你自己的 GitHub 私有仓库里，每台设备打开时自动同步。</p>
+    <p class="small" data-i18n-html="cloudDlg.have"><b>已经在别的设备上设置过：</b>在那台设备上点「⋯ → 复制同步码」，粘贴到下面任意一个框里。</p>
     <details class="small">
-      <summary>第一次设置的步骤</summary>
-      <ol class="steps">
+      <summary data-i18n="cloudDlg.stepsH">第一次设置的步骤</summary>
+      <ol class="steps" data-i18n-html="cloudDlg.steps">
         <li>在 GitHub 上新建一个仓库，比如叫 <b>bookshelf-data</b>，选 <b>Private</b>，并勾上「Add a README file」。</li>
         <li>打开<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">新建令牌的页面</a>（也就是点 GitHub 右上角的<b>头像</b> → Settings → 左侧栏最底下的 Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token；注意不是仓库里的 Settings）。</li>
         <li>Repository access 选 <b>Only select repositories</b>，只选刚建的仓库；Permissions 里把 <b>Contents</b> 设成 <b>Read and write</b>。</li>
         <li>生成后马上复制令牌（github_pat_ 开头，离开页面就看不到了），和仓库名一起填到下面。</li>
       </ol>
     </details>
-    <label class="inp">仓库<input id="cRepo" placeholder="你的用户名/bookshelf-data" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-    <label class="inp">访问令牌<input id="cToken" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    <label class="inp"><span data-i18n="cloudDlg.repo">仓库</span><input id="cRepo" placeholder="你的用户名/bookshelf-data" data-i18n-ph="cloudDlg.repoPh" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    <label class="inp"><span data-i18n="cloudDlg.token">访问令牌</span><input id="cToken" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
     <p class="err" id="cErr" hidden></p>
   </div>
-  <div class="df"><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn primary" id="cConnect">连接</button></div>
+  <div class="df"><span class="sp"></span><button class="btn" data-close data-i18n="cancel">取消</button><button class="btn primary" id="cConnect" data-i18n="connect">连接</button></div>
 </dialog>
 
 <input type="file" id="fileIn" accept=".csv,.json,text/csv,application/json" hidden>
 <div id="toast" role="status"></div>
-<div id="dropHint">松开即可导入 CSV</div>
+<div id="dropHint" data-i18n="dropHint">松开即可导入 CSV</div>
 
 <script>
 (() => {
@@ -499,7 +523,8 @@ const FLOOR = 8;
 const ZMIN = 0.08, ZMAX = 3;
 const HOLD_MS = 350;   // 触屏上按住多久才能拖书
 const STORE_KEY = 'vshelf.v1';
-const LOCAL_KEY = 'vshelf.local';        // 只属于这台设备的设置（同步令牌、提示有没有看过），不同步、不进备份
+const LOCAL_KEY = 'vshelf.local';
+const LANG_KEY = 'vshelf.lang';          // 本机最后选的界面语言，单独存：旧版本页面存数据时会丢掉不认识的设置，但不会碰这个        // 只属于这台设备的设置（同步令牌、提示有没有看过），不同步、不进备份
 const GH_API = 'https://api.github.com';
 const SYNC_FILE = 'bookshelf.json';
 const PUSH_DELAY = 2500;                 // 改完之后等多久再上传（连续拖好几本书时只传一次）
@@ -511,6 +536,7 @@ const SORTS = ['genre', 'title', 'author', 'added'];
 const PALETTE = [
   '#8c2f39', '#2f5d8a', '#3d7a4f', '#c08a2e', '#5b4a8a', '#25716c', '#b5552f', '#6b4f3a', '#3e4a5c', '#a3476b',
   '#8fa04a', '#d6bb8f', '#3f74a6', '#86579a', '#e5d5ae', '#1f4a3d', '#d88a8a', '#5f6f73', '#8a6d1f', '#2b2b33',
+  '#81bbbb', '#78a57c', '#b089b3', '#899bb3', '#53562e', '#5b294b', '#a78b76', '#92625d', '#242461', '#459dba',
 ];
 const DARK_TEXT = '#2b2118', LIGHT_TEXT = '#fbf6ec';
 const GENRE_ZH = {
@@ -524,7 +550,715 @@ const GENRE_ZH = {
   'Juvenile Nonfiction': '少儿读物', 'Crafts & Hobbies': '手工爱好', 'Design': '设计', 'Photography': '摄影',
   'Architecture': '建筑', 'Humor': '幽默', 'Family & Relationships': '家庭关系', 'Gardening': '园艺', 'Pets': '宠物',
   'House & Home': '家居', 'True Crime': '真实罪案', 'Performing Arts': '表演艺术', 'Foreign Language Study': '外语学习',
-  'Literary Collections': '文学选集', 'Body, Mind & Spirit': '身心灵', 'Transportation': '交通', 'Antiques & Collectibles': '收藏',
+  'Literary Collections': '文学选集', 'Essays': '散文随笔', 'Body, Mind & Spirit': '身心灵', 'Transportation': '交通', 'Antiques & Collectibles': '收藏',
+};
+/* ---------- 界面语言（只翻译界面，书名和书的信息保持原样） ---------- */
+const LANGS = ['zh-Hans', 'zh-Hant', 'en'];
+const LOCALE = { 'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW', en: 'en-US' };
+const MSG = {
+  'zh-Hans': {
+    "app.title": "虚拟书架",
+    "bar.edit": "整理",
+    "bar.sync": "待同步",
+    "hint.ok": "知道了",
+    "edit.done": "完成",
+    "zoom.fit": "看全部",
+    "empty.h": "先导入你的书目",
+    "empty.p": "在 BookBuddy 里把书库导出成 CSV 文件，然后在这里导入。",
+    "import.csv": "导入 BookBuddy CSV",
+    "empty.cloud": "从其他设备同步",
+    "sync.h": "待同步到 BookBuddy",
+    "sync.p": "这些书在虚拟书架上换了位置，但 BookBuddy 里的 Physical Location 还是旧的。请在 BookBuddy 里照着改，改完重新导出 CSV 再导入，对应的条目会自动消掉。",
+    "sync.import": "导入新的 CSV",
+    "sync.copy": "复制清单",
+    "ok": "好",
+    "menu.h": "设置",
+    "cloud.h": "多设备同步",
+    "cloud.setup": "设置同步…",
+    "cloud.now": "立即同步",
+    "cloud.code": "复制同步码",
+    "cloud.stop": "停止同步",
+    "lang.label": "界面语言",
+    "genreEn.label": "分类名称同时显示英文",
+    "sort.label": "层内自动排序",
+    "sort.genre": "按分类（同系列放一起）",
+    "sort.title": "按书名",
+    "sort.author": "按作者",
+    "sort.added": "按加入 BookBuddy 的时间",
+    "sort.note": "在整理模式里手动拖过顺序的层，会保持你排好的顺序。",
+    "sort.reset": "清除所有手动排序",
+    "backup.h": "换设备 / 备份",
+    "backup.p": "导出一个备份文件，可以留作存档，或者在另一台设备上恢复。没开同步的话，书目、手动排序和待同步清单都只保存在这台设备上。",
+    "backup.export": "导出备份",
+    "backup.restore": "从备份恢复",
+    "help.h": "使用说明",
+    "clear.btn": "清空这台设备上的数据",
+    "cloudDlg.h": "设置多设备同步",
+    "cloudDlg.p": "书目、层内排序和待同步清单会保存在你自己的 GitHub 私有仓库里，每台设备打开时自动同步。",
+    "cloudDlg.stepsH": "第一次设置的步骤",
+    "cloudDlg.repo": "仓库",
+    "cloudDlg.token": "访问令牌",
+    "cancel": "取消",
+    "connect": "连接",
+    "dropHint": "松开即可导入 CSV",
+    "empty.note": "在 Mac 上也可以直接把 CSV 文件拖进这个窗口。<br>数据保存在这台设备的浏览器里；开启多设备同步后，会另存一份到你自己的 GitHub 私有仓库。",
+    "sync.backup": "这个清单只保存在这台设备上，建议<button class=\"link\" id=\"syncBackupBtn\">导出一份备份</button>。",
+    "help.items": "<li><b>位置怎么写：</b>书柜字母加层号，层号从下往上数，比如 A3、B5、C6。A7、C7 是柜顶上。</li>\n<li><b>更新书目：</b>在 BookBuddy 里改好后重新导出 CSV 再导入。手动排序和待同步清单都会保留。</li>\n<li><b>找书：</b>可以搜书名、作者、系列或 ISBN，简体繁体都能搜到。点搜索结果会跳到那本书。点上方的分类可以只看某一类。</li>\n<li><b>层内顺序：</b>BookBuddy 只记到层，所以同一层里的顺序是自动排的，不一定和实际摆放一样。想让它一致，可以在整理模式里按实际顺序拖一遍。</li>\n<li><b>缩放：</b>双指捏合，或者用右下角的按钮。Mac 触控板也能捏合，或者按住 ⌘ 滚动。</li>\n<li><b>整理：</b>点「整理」后可以拖动书脊（手机和 iPad 上要先按住书脊一下再拖）。同一层里换顺序只记在本机；拖到别的层会加进「待同步」清单。</li>\n<li><b>未上架：</b>位置为空、或者书架上没有这个位置的书，放在书架下方的「未上架」区。</li>\n<li><b>多设备同步：</b>开启后，在一台设备上导入、整理、移动的结果，会自动出现在其它设备上。数据存在你自己的 GitHub 私有仓库里。</li>\n<li><b>iPhone / iPad：</b>建议在 Safari 里点分享 →「添加到主屏幕」，以后从主屏幕打开。Safari 里的网站数据 7 天不打开可能会被清掉，主屏幕上的不会；两边的数据也不互通。</li>",
+    "cloudDlg.have": "<b>已经在别的设备上设置过：</b>在那台设备上点「⋯ → 复制同步码」，粘贴到下面任意一个框里。",
+    "cloudDlg.steps": "<li>在 GitHub 上新建一个仓库，比如叫 <b>bookshelf-data</b>，选 <b>Private</b>，并勾上「Add a README file」。</li>\n<li>打开<a href=\"https://github.com/settings/personal-access-tokens/new\" target=\"_blank\" rel=\"noopener\">新建令牌的页面</a>（也就是点 GitHub 右上角的<b>头像</b> → Settings → 左侧栏最底下的 Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token；注意不是仓库里的 Settings）。</li>\n<li>Repository access 选 <b>Only select repositories</b>，只选刚建的仓库；Permissions 里把 <b>Contents</b> 设成 <b>Read and write</b>。</li>\n<li>生成后马上复制令牌（github_pat_ 开头，离开页面就看不到了），和仓库名一起填到下面。</li>",
+    "search.ph": "搜索书名、作者…",
+    "cloudDlg.repoPh": "你的用户名/bookshelf-data",
+    "search.clear": "清除搜索",
+    "zoom.out": "缩小",
+    "zoom.in": "放大",
+    "close": "关闭",
+    "device.browser": "浏览器",
+    "loc.unplaced": "未上架",
+    "loc.unplacedBB": "未上架（BookBuddy 里是 {loc}）",
+    "genre.none": "未分类",
+    "save.quota": "存储空间不够",
+    "save.fail": "⚠️ 没能保存到这台设备（{err}），",
+    "save.failSync": "不过同步开着，改动仍会上传到云端。",
+    "save.failLocal": "关掉页面后这些改动会丢失。可以在设置里导出备份。",
+    "csv.notBB": "这个文件不像 BookBuddy 导出的 CSV（没找到 Title 或 Physical Location 这两列）",
+    "csv.empty": "CSV 里没有找到书",
+    "unknown": "（未知）",
+    "q.book": "《{t}》",
+    "list.sep": "",
+    "list.more": " 等 {n} 本",
+    "imp.first": "已导入 {n} 本书{unplaced}。",
+    "imp.again": "已导入 {n} 本书（新增 {a}，移除 {r}，换位置 {m}）{unplaced}。",
+    "imp.unplaced": "，{n} 本未上架",
+    "imp.skipped": "忽略了 {n} 本心愿单 / 已不拥有的书。",
+    "imp.allDone": "待同步的 {n} 项都改好了 ✓",
+    "imp.someDone": "待同步：完成 {d} 项，还剩 {l} 项。",
+    "imp.left": "还有 {n} 项待同步。",
+    "imp.overridden": "{books}在 BookBuddy 里改成了别的位置，已按 BookBuddy 为准。",
+    "imp.invalid": "{books}在 BookBuddy 里填的位置书架上没有，待同步先保留。",
+    "imp.lost": "有 {n} 条待同步找不到对应的书（可能在 BookBuddy 里删掉了），已移除：{books}",
+    "backup.none": "还没有数据可以备份",
+    "backup.file": "虚拟书架备份",
+    "backup.name": "备份",
+    "restore.unreadable": "备份文件读不出来",
+    "restore.notOurs": "这不是虚拟书架的备份文件",
+    "restore.confirmSync": "用这个备份覆盖现在的数据吗？开着同步，其它设备上的也会一起被覆盖。",
+    "restore.confirm": "用这个备份覆盖这台设备上现在的数据吗？",
+    "restore.done": "已从备份恢复：{n} 本书，{m} 项待同步",
+    "file.readFail": "读取文件失败：{err}",
+    "vol": "第 {n} 卷",
+    "gap.label": "空位",
+    "gap.remove": "去掉这个空位",
+    "plate": "{id} · {n}本",
+    "plate.top": "{id} 柜顶 · {n}本",
+    "reord.reset": "↺ 恢复自动排序",
+    "reord.addGap": "＋ 空位",
+    "tray.title": "未上架 · {n} 本",
+    "tray.sub": "BookBuddy 里的位置是空的，或者书架上没有这个位置",
+    "tray.empty": "空",
+    "chip.clear": "✕ 清除筛选",
+    "hint.main": "建议在 Safari 里点分享 →「添加到主屏幕」，以后从主屏幕打开：Safari 里的网站数据 7 天不打开可能会被清掉，主屏幕上的不会。",
+    "hint.sync": "两边的数据不互通，到主屏幕上的书架里再设置一次同步就行。",
+    "hint.backup": "两边的数据不互通，可以先在设置里导出备份，再到主屏幕上的书架里导入。",
+    "emptyIOS.app": "在别的设备上开了同步的话，点「从其他设备同步」就行。BookBuddy 导出 CSV 时可以选「存储到“文件”」，这里就能选到。",
+    "emptyIOS.safari": "建议先点 Safari 的分享按钮 →「添加到主屏幕」，从主屏幕打开再导入。Safari 里的网站数据 7 天不打开可能会被清掉，主屏幕上的不会；两边的数据也不互通。",
+    "res.found": "找到 {n} 本",
+    "res.inGenre": "（只在选中的分类里找）",
+    "res.more": "还有 {n} 本，多输几个字试试",
+    "res.noneInGenre": "在选中的分类里没有找到「{q}」",
+    "res.allGenres": "在全部分类里找（{n} 本）",
+    "res.none": "没有找到「{q}」",
+    "where.here": "这层",
+    "where.top": "柜顶上",
+    "where.only": "{where}只有这一本",
+    "where.right": "靠右的那一组，从右往左第 {r} 本（{where}共 {n} 本）",
+    "where.left": "从左往右第 {i} 本（{where}共 {n} 本）",
+    "where.auto": "{where}共 {n} 本，在虚拟书架上是从左数第 {i} 本（层内是自动排序的，和实际摆放不一定一样）",
+    "where.shelf": "{col} 柜 · 第 {n} 层（从下往上数）",
+    "where.cabTop": "{col} 柜顶上",
+    "opt.pick": "选一个位置…",
+    "opt.cab": "{c} 柜",
+    "opt.top": "{id}（柜顶上）",
+    "opt.shelf": "{id}（第 {n} 层）",
+    "d.author": "作者",
+    "d.translator": "译者",
+    "d.editor": "编者",
+    "d.series": "系列",
+    "d.publisher": "出版社",
+    "d.year": "出版年份",
+    "d.isbn": "ISBN",
+    "d.pages": "页数",
+    "d.genre": "分类",
+    "d.lang": "语言",
+    "d.loaned": "借给",
+    "d.both": "{a}（{b}）",
+    "d.unplaced": "未上架",
+    "d.badLoc": "BookBuddy 里的位置是「{loc}」，书架上没有这个位置",
+    "d.noLoc": "BookBuddy 里没有填位置",
+    "d.pending": "已在虚拟书架上移动：<b>{from} → {to}</b><br>BookBuddy 里还没改。改好后重新导入 CSV，这一条会自动消掉。",
+    "d.undo": "撤销移动",
+    "d.moveTo": "移到",
+    "d.moveBtn": "移过去",
+    "d.notes": "备注",
+    "d.summary": "内容简介",
+    "toast.already": "已经在 {to} 了",
+    "toast.moved": "《{title}》{from} → {to}，已加进待同步清单",
+    "toast.movedBack": "《{title}》放回了 BookBuddy 里记录的 {to}，不用再同步",
+    "toast.gapAdded": "{id} 加了一个空位（在最右边）。把它拖到靠左和靠右的两组书中间就行。",
+    "toast.gapManual": "这一层改成了手动排序。",
+    "toast.undo": "《{title}》回到了 {loc}",
+    "toast.reset": "{id} 已恢复自动排序",
+    "toast.resetGap": "，空位也去掉了",
+    "edit.text": "整理模式：拖动书脊换位置",
+    "edit.textTouch": "整理模式：按住书脊一下再拖动",
+    "edit.tipTouch": "先按住书脊一下，等它拿起来再拖；直接滑动是滚动画布。",
+    "edit.tip": "同一层里拖动只改顺序（记在这台设备上）；拖到别的层会加进「待同步」清单，之后到 BookBuddy 里照着改。",
+    "sync.colhd": "BookBuddy 里现在是 → 要改成",
+    "sync.bad": "BookBuddy 里的「{loc}」书架上没有",
+    "sync.find": "查看",
+    "sync.undo": "撤销",
+    "sync.none": "没有待同步的修改 ✓",
+    "copy.header": "在 BookBuddy 里修改这些书的 Physical Location（共 {n} 本）：",
+    "copy.item": "{i}. 《{title}》{author}：{from} → {to}",
+    "copy.author": "（{a}）",
+    "copy.ok": "清单已复制",
+    "copy.fail": "复制失败，请手动抄一下",
+    "menu.meta": "上次导入：{time}{name} · {n} 本",
+    "menu.metaNone": "还没有导入过书目。",
+    "resetAll.confirm": "清除所有层的手动排序，全部改回自动排序？",
+    "resetAll.done": "已清除所有手动排序",
+    "clear.confirmSync": "清空这台设备上的数据，并在这台设备上停止同步？云端和 BookBuddy 里的数据不受影响。",
+    "clear.confirm": "清空这台设备上的书目、手动排序和待同步清单？BookBuddy 里的数据不受影响。",
+    "gh.401": "令牌无效或者已经过期，请在设置里重新设置同步",
+    "gh.403": "令牌没有这个仓库的读写权限（Contents 要设成 Read and write）",
+    "gh.other": "GitHub 返回了错误 {s}，稍后会再试",
+    "gh.badFile": "云端的 {file} 不是虚拟书架的数据，没有动它",
+    "gh.mergeFail": "和云端的数据合并了几次都没成功，稍后会再试",
+    "sync.fromCloud": "已从云端同步：{n} 本书，{m} 项待同步",
+    "sync.fromDevice": "已同步「{d}」上的修改",
+    "sync.fromOther": "已同步其它设备上的修改",
+    "sync.failToast": "⚠️ 同步失败：{err}",
+    "ago.now": "刚刚",
+    "ago.min": "{n} 分钟前",
+    "ago.hour": "{n} 小时前",
+    "status.off": "没有开启。开启后，书目、层内排序和待同步清单会在你的 Mac、iPhone、iPad 之间自动同步。",
+    "status.on": "已连接 {repo} · {state}",
+    "status.busy": "正在同步…",
+    "status.offlineDirty": "没有网络，有修改还没上传，联网后会自动同步",
+    "status.offline": "没有网络，联网后会自动同步",
+    "status.dirty": "有修改等着上传…",
+    "status.at": "{ago}同步过",
+    "status.never": "还没同步过",
+    "conn.net": "连不上 GitHub，检查一下网络",
+    "conn.401": "令牌无效或者已经过期",
+    "conn.404": "找不到这个仓库，或者令牌没有访问它的权限",
+    "conn.public": "这个仓库是公开的，书目会被所有人看到。请换成私有（Private）仓库。",
+    "conn.ok": "同步已开启：{n} 本书，{m} 项待同步。\n在其它设备上点「⋯ → 设置同步」，粘贴这台设备的同步码就行。",
+    "conn.badRepo": "仓库要写成「用户名/仓库名」，比如 yourname/bookshelf-data",
+    "conn.noToken": "请填写访问令牌",
+    "conn.busy": "正在连接…",
+    "syncNow.ok": "已同步",
+    "code.copied": "同步码已复制。在另一台设备上打开虚拟书架，点「⋯ → 设置同步」粘贴进去（同一个 Apple ID 的设备可以直接粘贴）。\n同步码里包含令牌，不要发给别人。",
+    "code.fail": "复制失败",
+    "stop.confirm": "在这台设备上停止同步？这台设备上的数据会保留，云端的数据也不会删除。",
+    "stop.done": "这台设备已停止同步",
+  },
+  'zh-Hant': {
+    "app.title": "虛擬書架",
+    "bar.edit": "整理",
+    "bar.sync": "待同步",
+    "hint.ok": "知道了",
+    "edit.done": "完成",
+    "zoom.fit": "顯示全部",
+    "empty.h": "先匯入你的書目",
+    "empty.p": "在 BookBuddy 將書庫匯出成 CSV 檔案，然後在這裡匯入。",
+    "import.csv": "匯入 BookBuddy CSV",
+    "empty.cloud": "從其他裝置同步",
+    "sync.h": "待同步到 BookBuddy",
+    "sync.p": "這些書在虛擬書架上換了位置，但 BookBuddy 裡的 Physical Location 還是舊的。請在 BookBuddy 裡照著修改，改完後重新匯出 CSV 再匯入，對應的項目就會自動消失。",
+    "sync.import": "匯入新的 CSV",
+    "sync.copy": "複製清單",
+    "ok": "好",
+    "menu.h": "設定",
+    "cloud.h": "多裝置同步",
+    "cloud.setup": "設定同步…",
+    "cloud.now": "立即同步",
+    "cloud.code": "複製同步碼",
+    "cloud.stop": "停止同步",
+    "lang.label": "介面語言",
+    "genreEn.label": "分類名稱同時顯示英文",
+    "sort.label": "層內自動排序",
+    "sort.genre": "依分類（同系列放在一起）",
+    "sort.title": "依書名",
+    "sort.author": "依作者",
+    "sort.added": "依加入 BookBuddy 的時間",
+    "sort.note": "在整理模式中手動拖曳過順序的層，會保留你排好的順序。",
+    "sort.reset": "清除所有手動排序",
+    "backup.h": "換裝置 / 備份",
+    "backup.p": "匯出一個備份檔案，可以留存，或在另一台裝置上還原。沒有開啟同步的話，書目、手動排序和待同步清單都只會儲存在這台裝置上。",
+    "backup.export": "匯出備份",
+    "backup.restore": "從備份還原",
+    "help.h": "使用說明",
+    "clear.btn": "清除這台裝置上的資料",
+    "cloudDlg.h": "設定多裝置同步",
+    "cloudDlg.p": "書目、層內排序和待同步清單會儲存在你自己的 GitHub 私人儲存庫中，每台裝置開啟時都會自動同步。",
+    "cloudDlg.stepsH": "第一次設定的步驟",
+    "cloudDlg.repo": "儲存庫",
+    "cloudDlg.token": "存取權杖",
+    "cancel": "取消",
+    "connect": "連線",
+    "dropHint": "放開即可匯入 CSV",
+    "empty.note": "在 Mac 上也可以直接將 CSV 檔案拖進這個視窗。<br>資料儲存在這台裝置的瀏覽器中；開啟多裝置同步後，會另外儲存一份到你自己的 GitHub 私人儲存庫。",
+    "sync.backup": "這份清單只儲存在這台裝置上，建議<button class=\"link\" id=\"syncBackupBtn\">匯出一份備份</button>。",
+    "help.items": "<li><b>位置怎麼寫：</b>書櫃字母加上層號，層號由下往上數，例如 A3、B5、C6。A7、C7 是櫃頂。</li>\n<li><b>更新書目：</b>在 BookBuddy 裡修改後，重新匯出 CSV 再匯入。手動排序和待同步清單都會保留。</li>\n<li><b>找書：</b>可以搜尋書名、作者、系列或 ISBN，簡體和繁體都搜尋得到。點一下搜尋結果就會跳到那本書。點一下上方的分類可以只看某一類。</li>\n<li><b>層內順序：</b>BookBuddy 只記錄到層，所以同一層裡的順序是自動排列的，不一定和實際擺放相同。想讓兩者一致，可以在整理模式中依照實際順序拖曳一遍。</li>\n<li><b>縮放：</b>用雙指開合，或使用右下角的按鈕。在 Mac 的觸控式軌跡板上也可以雙指開合，或按住 ⌘ 並捲動。</li>\n<li><b>整理：</b>點一下「整理」後就可以拖曳書脊（在手機和 iPad 上要先按住書脊一下再拖曳）。在同一層裡調換順序只會記錄在這台裝置上；拖到別的層則會加入「待同步」清單。</li>\n<li><b>未上架：</b>位置空白，或書架上沒有該位置的書，會放在書架下方的「未上架」區。</li>\n<li><b>多裝置同步：</b>開啟後，在一台裝置上匯入、整理、移動的結果，會自動出現在其他裝置上。資料儲存在你自己的 GitHub 私人儲存庫中。</li>\n<li><b>iPhone / iPad：</b>建議在 Safari 點一下分享 →「加入主畫面」，之後從主畫面開啟。Safari 裡的網站資料若 7 天沒有開啟可能會被清除，主畫面上的則不會；兩邊的資料也不互通。</li>",
+    "cloudDlg.have": "<b>已經在別的裝置上設定過：</b>在那台裝置上點一下「⋯ → 複製同步碼」，貼到下方任一個欄位中。",
+    "cloudDlg.steps": "<li>在 GitHub 上建立一個新的儲存庫，例如命名為 <b>bookshelf-data</b>，選擇 <b>Private</b>，並勾選「Add a README file」。</li>\n<li>開啟<a href=\"https://github.com/settings/personal-access-tokens/new\" target=\"_blank\" rel=\"noopener\">建立權杖的頁面</a>（也就是點一下 GitHub 右上角的<b>大頭貼</b> → Settings → 左側欄最下方的 Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token；注意不是儲存庫裡的 Settings）。</li>\n<li>Repository access 選擇 <b>Only select repositories</b>，只選剛建立的儲存庫；在 Permissions 中將 <b>Contents</b> 設為 <b>Read and write</b>。</li>\n<li>產生後立即複製權杖（以 github_pat_ 開頭，離開頁面後就看不到了），和儲存庫名稱一起填到下方。</li>",
+    "search.ph": "搜尋書名、作者…",
+    "cloudDlg.repoPh": "你的使用者名稱/bookshelf-data",
+    "search.clear": "清除搜尋",
+    "zoom.out": "縮小",
+    "zoom.in": "放大",
+    "close": "關閉",
+    "device.browser": "瀏覽器",
+    "loc.unplaced": "未上架",
+    "loc.unplacedBB": "未上架（BookBuddy 裡是 {loc}）",
+    "genre.none": "未分類",
+    "save.quota": "儲存空間不足",
+    "save.fail": "⚠️ 無法儲存到這台裝置（{err}），",
+    "save.failSync": "不過同步已開啟，變更仍會上傳到雲端。",
+    "save.failLocal": "關閉頁面後這些變更就會遺失。可以在設定中匯出備份。",
+    "csv.notBB": "這個檔案看起來不是 BookBuddy 匯出的 CSV（找不到 Title 或 Physical Location 這兩欄）",
+    "csv.empty": "CSV 中找不到任何書",
+    "unknown": "（未知）",
+    "q.book": "《{t}》",
+    "list.sep": "",
+    "list.more": " 等 {n} 本",
+    "imp.first": "已匯入 {n} 本書{unplaced}。",
+    "imp.again": "已匯入 {n} 本書（新增 {a}，移除 {r}，換位置 {m}）{unplaced}。",
+    "imp.unplaced": "，{n} 本未上架",
+    "imp.skipped": "已略過 {n} 本願望清單 / 已不再擁有的書。",
+    "imp.allDone": "待同步的 {n} 項都改好了 ✓",
+    "imp.someDone": "待同步：完成 {d} 項，還剩 {l} 項。",
+    "imp.left": "還有 {n} 項待同步。",
+    "imp.overridden": "{books}在 BookBuddy 裡改成了別的位置，已以 BookBuddy 為準。",
+    "imp.invalid": "{books}在 BookBuddy 裡填寫的位置在書架上不存在，待同步項目先保留。",
+    "imp.lost": "有 {n} 項待同步找不到對應的書（可能已在 BookBuddy 裡刪除），已移除：{books}",
+    "backup.none": "還沒有資料可以備份",
+    "backup.file": "虛擬書架備份",
+    "backup.name": "備份",
+    "restore.unreadable": "無法讀取備份檔案",
+    "restore.notOurs": "這不是虛擬書架的備份檔案",
+    "restore.confirmSync": "要用這個備份覆蓋目前的資料嗎？同步已開啟，其他裝置上的資料也會一併被覆蓋。",
+    "restore.confirm": "要用這個備份覆蓋這台裝置上目前的資料嗎？",
+    "restore.done": "已從備份還原：{n} 本書，{m} 項待同步",
+    "file.readFail": "讀取檔案失敗：{err}",
+    "vol": "第 {n} 卷",
+    "gap.label": "空位",
+    "gap.remove": "移除這個空位",
+    "plate": "{id} · {n}本",
+    "plate.top": "{id} 櫃頂 · {n}本",
+    "reord.reset": "↺ 恢復自動排序",
+    "reord.addGap": "＋ 空位",
+    "tray.title": "未上架 · {n} 本",
+    "tray.sub": "BookBuddy 裡的位置是空白的，或書架上沒有這個位置",
+    "tray.empty": "空白",
+    "chip.clear": "✕ 清除篩選",
+    "hint.main": "建議在 Safari 點一下分享 →「加入主畫面」，之後從主畫面開啟：Safari 裡的網站資料若 7 天沒有開啟可能會被清除，主畫面上的則不會。",
+    "hint.sync": "兩邊的資料不互通，到主畫面上的書架裡再設定一次同步就行了。",
+    "hint.backup": "兩邊的資料不互通，可以先在設定中匯出備份，再到主畫面上的書架裡匯入。",
+    "emptyIOS.app": "如果已在別的裝置上開啟同步，點一下「從其他裝置同步」就行了。BookBuddy 匯出 CSV 時可以選擇「儲存到『檔案』」，這裡就能選到。",
+    "emptyIOS.safari": "建議先點一下 Safari 的分享按鈕 →「加入主畫面」，從主畫面開啟後再匯入。Safari 裡的網站資料若 7 天沒有開啟可能會被清除，主畫面上的則不會；兩邊的資料也不互通。",
+    "res.found": "找到 {n} 本",
+    "res.inGenre": "（只在選取的分類中搜尋）",
+    "res.more": "還有 {n} 本，試試多輸入幾個字",
+    "res.noneInGenre": "在選取的分類中找不到「{q}」",
+    "res.allGenres": "在所有分類中搜尋（{n} 本）",
+    "res.none": "找不到「{q}」",
+    "where.here": "這層",
+    "where.top": "櫃頂上",
+    "where.only": "{where}只有這一本",
+    "where.right": "靠右的那一組，由右往左第 {r} 本（{where}共 {n} 本）",
+    "where.left": "由左往右第 {i} 本（{where}共 {n} 本）",
+    "where.auto": "{where}共 {n} 本，在虛擬書架上是從左數來第 {i} 本（層內是自動排序的，不一定和實際擺放相同）",
+    "where.shelf": "{col} 櫃 · 第 {n} 層（由下往上數）",
+    "where.cabTop": "{col} 櫃頂上",
+    "opt.pick": "選擇一個位置…",
+    "opt.cab": "{c} 櫃",
+    "opt.top": "{id}（櫃頂上）",
+    "opt.shelf": "{id}（第 {n} 層）",
+    "d.author": "作者",
+    "d.translator": "譯者",
+    "d.editor": "編者",
+    "d.series": "系列",
+    "d.publisher": "出版社",
+    "d.year": "出版年份",
+    "d.isbn": "ISBN",
+    "d.pages": "頁數",
+    "d.genre": "分類",
+    "d.lang": "語言",
+    "d.loaned": "借給",
+    "d.both": "{a}（{b}）",
+    "d.unplaced": "未上架",
+    "d.badLoc": "BookBuddy 裡的位置是「{loc}」，書架上沒有這個位置",
+    "d.noLoc": "BookBuddy 裡沒有填寫位置",
+    "d.pending": "已在虛擬書架上移動：<b>{from} → {to}</b><br>BookBuddy 裡還沒修改。改好後重新匯入 CSV，這一項就會自動消失。",
+    "d.undo": "復原移動",
+    "d.moveTo": "移到",
+    "d.moveBtn": "移過去",
+    "d.notes": "備註",
+    "d.summary": "內容簡介",
+    "toast.already": "已經在 {to} 了",
+    "toast.moved": "《{title}》{from} → {to}，已加入待同步清單",
+    "toast.movedBack": "《{title}》已放回 BookBuddy 裡記錄的 {to}，不需要再同步",
+    "toast.gapAdded": "已在 {id} 加入一個空位（在最右邊）。把它拖到靠左和靠右的兩組書中間就行了。",
+    "toast.gapManual": "這一層已改為手動排序。",
+    "toast.undo": "《{title}》已回到 {loc}",
+    "toast.reset": "{id} 已恢復自動排序",
+    "toast.resetGap": "，空位也移除了",
+    "edit.text": "整理模式：拖曳書脊來調換位置",
+    "edit.textTouch": "整理模式：按住書脊一下再拖曳",
+    "edit.tipTouch": "先按住書脊一下，等它被拿起來再拖曳；直接滑動則是捲動畫布。",
+    "edit.tip": "在同一層裡拖曳只會改變順序（記錄在這台裝置上）；拖到別的層則會加入「待同步」清單，之後再到 BookBuddy 裡照著修改。",
+    "sync.colhd": "BookBuddy 裡目前是 → 要改成",
+    "sync.bad": "BookBuddy 裡的「{loc}」在書架上不存在",
+    "sync.find": "查看",
+    "sync.undo": "復原",
+    "sync.none": "沒有待同步的修改 ✓",
+    "copy.header": "在 BookBuddy 裡修改這些書的 Physical Location（共 {n} 本）：",
+    "copy.item": "{i}. 《{title}》{author}：{from} → {to}",
+    "copy.author": "（{a}）",
+    "copy.ok": "清單已複製",
+    "copy.fail": "複製失敗，請手動抄寫",
+    "menu.meta": "上次匯入：{time}{name} · {n} 本",
+    "menu.metaNone": "還沒有匯入過書目。",
+    "resetAll.confirm": "要清除所有層的手動排序，全部改回自動排序嗎？",
+    "resetAll.done": "已清除所有手動排序",
+    "clear.confirmSync": "要清除這台裝置上的資料，並在這台裝置上停止同步嗎？雲端和 BookBuddy 裡的資料不受影響。",
+    "clear.confirm": "要清除這台裝置上的書目、手動排序和待同步清單嗎？BookBuddy 裡的資料不受影響。",
+    "gh.401": "權杖無效或已過期，請在設定中重新設定同步",
+    "gh.403": "權杖沒有這個儲存庫的讀寫權限（Contents 要設為 Read and write）",
+    "gh.other": "GitHub 傳回錯誤 {s}，稍後會再試一次",
+    "gh.badFile": "雲端的 {file} 不是虛擬書架的資料，所以沒有更動它",
+    "gh.mergeFail": "和雲端資料合併了幾次都沒有成功，稍後會再試一次",
+    "sync.fromCloud": "已從雲端同步：{n} 本書，{m} 項待同步",
+    "sync.fromDevice": "已同步「{d}」上的修改",
+    "sync.fromOther": "已同步其他裝置上的修改",
+    "sync.failToast": "⚠️ 同步失敗：{err}",
+    "ago.now": "剛剛",
+    "ago.min": "{n} 分鐘前",
+    "ago.hour": "{n} 小時前",
+    "status.off": "尚未開啟。開啟後，書目、層內排序和待同步清單會在你的 Mac、iPhone、iPad 之間自動同步。",
+    "status.on": "已連線到 {repo} · {state}",
+    "status.busy": "正在同步…",
+    "status.offlineDirty": "沒有網路連線，有修改尚未上傳，連線後會自動同步",
+    "status.offline": "沒有網路連線，連線後會自動同步",
+    "status.dirty": "有修改等待上傳…",
+    "status.at": "{ago}同步過",
+    "status.never": "還沒同步過",
+    "conn.net": "無法連線到 GitHub，請檢查網路",
+    "conn.401": "權杖無效或已過期",
+    "conn.404": "找不到這個儲存庫，或權杖沒有存取它的權限",
+    "conn.public": "這個儲存庫是公開的，所有人都能看到你的書目。請改用私人（Private）儲存庫。",
+    "conn.ok": "同步已開啟：{n} 本書，{m} 項待同步。\n在其他裝置上點一下「⋯ → 設定同步」，貼上這台裝置的同步碼就行了。",
+    "conn.badRepo": "儲存庫要寫成「使用者名稱/儲存庫名稱」，例如 yourname/bookshelf-data",
+    "conn.noToken": "請填寫存取權杖",
+    "conn.busy": "正在連線…",
+    "syncNow.ok": "已同步",
+    "code.copied": "同步碼已複製。在另一台裝置上開啟虛擬書架，點一下「⋯ → 設定同步」並貼上（使用同一個 Apple ID 的裝置可以直接貼上）。\n同步碼包含權杖，請勿傳給別人。",
+    "code.fail": "複製失敗",
+    "stop.confirm": "要在這台裝置上停止同步嗎？這台裝置上的資料會保留，雲端的資料也不會刪除。",
+    "stop.done": "這台裝置已停止同步",
+  },
+  en: {
+    "app.title": "Virtual Bookshelf",
+    "bar.edit": "Arrange",
+    "bar.sync": "Pending",
+    "hint.ok": "Got it",
+    "edit.done": "Done",
+    "zoom.fit": "Show all",
+    "empty.h": "Start by importing your books",
+    "empty.p": "Export your library from BookBuddy as a CSV file, then import it here.",
+    "import.csv": "Import BookBuddy CSV",
+    "empty.cloud": "Sync from another device",
+    "sync.h": "Pending updates for BookBuddy",
+    "sync.p": "These books were moved on the virtual bookshelf, but their Physical Location in BookBuddy is still the old one. Update them in BookBuddy to match, then export a new CSV and import it here. Updated items will clear automatically.",
+    "sync.import": "Import new CSV",
+    "sync.copy": "Copy list",
+    "ok": "OK",
+    "menu.h": "Settings",
+    "cloud.h": "Sync across devices",
+    "cloud.setup": "Set up sync…",
+    "cloud.now": "Sync now",
+    "cloud.code": "Copy sync code",
+    "cloud.stop": "Stop syncing",
+    "lang.label": "Language",
+    "genreEn.label": "Also show genre names in English",
+    "sort.label": "Auto-sort within shelves",
+    "sort.genre": "By genre (series kept together)",
+    "sort.title": "By title",
+    "sort.author": "By author",
+    "sort.added": "By date added to BookBuddy",
+    "sort.note": "Shelves you've reordered by hand in Arrange mode keep your order.",
+    "sort.reset": "Clear all manual ordering",
+    "backup.h": "Back up or switch devices",
+    "backup.p": "Export a backup file to keep as an archive or to restore on another device. If sync is off, your books, manual ordering, and Pending list are stored only on this device.",
+    "backup.export": "Export backup",
+    "backup.restore": "Restore from backup",
+    "help.h": "How to use",
+    "clear.btn": "Clear data on this device",
+    "cloudDlg.h": "Set up sync across devices",
+    "cloudDlg.p": "Your books, shelf order, and Pending list are saved to your own private GitHub repository and sync automatically whenever a device opens the bookshelf.",
+    "cloudDlg.stepsH": "First-time setup",
+    "cloudDlg.repo": "Repository",
+    "cloudDlg.token": "Access token",
+    "cancel": "Cancel",
+    "connect": "Connect",
+    "dropHint": "Drop to import CSV",
+    "empty.note": "On a Mac, you can also drag a CSV file straight into this window.<br>Your data is stored in this device's browser. With sync on, a copy is also saved to your own private GitHub repository.",
+    "sync.backup": "This list is stored only on this device. Consider <button class=\"link\" id=\"syncBackupBtn\">exporting a backup</button>.",
+    "help.items": "<li><b>Location format:</b> Cabinet letter plus shelf number, with shelves counted from the bottom up, e.g. A3, B5, C6. A7 and C7 are the cabinet tops.</li>\n<li><b>Updating your books:</b> After making changes in BookBuddy, export a new CSV and import it again. Your manual ordering and Pending list are kept.</li>\n<li><b>Finding books:</b> Search by title, author, series, or ISBN, in either Simplified or Traditional Chinese. Select a result to jump to that book. Select a genre at the top to show only that genre.</li>\n<li><b>Order within a shelf:</b> BookBuddy only records the shelf, so the order of books within a shelf is automatic and may not match how they're actually arranged. To make it match, drag them into their real order in Arrange mode.</li>\n<li><b>Zooming:</b> Pinch with two fingers, or use the buttons in the bottom-right corner. On a Mac, you can pinch on the trackpad or hold ⌘ and scroll.</li>\n<li><b>Arranging:</b> Turn on Arrange, then drag the spines (on iPhone and iPad, press and hold a spine briefly before dragging). Reordering within a shelf is saved only on this device; moving a book to another shelf adds it to the Pending list.</li>\n<li><b>Unshelved:</b> Books with no location, or with a location that doesn't exist on the bookshelf, appear in the Unshelved area below the bookshelf.</li>\n<li><b>Sync across devices:</b> Once it's on, anything you import, arrange, or move on one device shows up automatically on your other devices. Your data is stored in your own private GitHub repository.</li>\n<li><b>iPhone / iPad:</b> In Safari, tap Share → “Add to Home Screen”, then open the bookshelf from your Home Screen from now on. Safari may clear website data if you don't open the site for 7 days, but the Home Screen version won't. The two also don't share data.</li>",
+    "cloudDlg.have": "<b>Already set up on another device?</b> On that device, choose “⋯ → Copy sync code”, then paste it into either box below.",
+    "cloudDlg.steps": "<li>Create a new repository on GitHub, for example <b>bookshelf-data</b>. Choose <b>Private</b> and check “Add a README file”.</li>\n<li>Open the <a href=\"https://github.com/settings/personal-access-tokens/new\" target=\"_blank\" rel=\"noopener\">new token page</a> (or click your <b>profile picture</b> in the top-right corner of GitHub → Settings → Developer settings at the very bottom of the left sidebar → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token. Note that this is not the repository's Settings).</li>\n<li>Under Repository access, choose <b>Only select repositories</b> and select only the repository you just created. Under Permissions, set <b>Contents</b> to <b>Read and write</b>.</li>\n<li>Once it's generated, copy the token right away (it starts with github_pat_ and can't be viewed again after you leave the page), then enter it below along with the repository name.</li>",
+    "search.ph": "Search books…",
+    "cloudDlg.repoPh": "yourname/bookshelf-data",
+    "search.clear": "Clear search",
+    "zoom.out": "Zoom out",
+    "zoom.in": "Zoom in",
+    "close": "Close",
+    "device.browser": "a browser",
+    "loc.unplaced": "Unshelved",
+    "loc.unplacedBB": "Unshelved (BookBuddy: {loc})",
+    "genre.none": "Uncategorized",
+    "save.quota": "Not enough storage space",
+    "save.fail": "⚠️ Couldn't save to this device ({err}). ",
+    "save.failSync": "Sync is on, though, so your changes will still be uploaded to the cloud.",
+    "save.failLocal": "These changes will be lost when you close the page. You can export a backup in Settings.",
+    "csv.notBB": "This file doesn't look like a BookBuddy CSV export (no Title or Physical Location column found)",
+    "csv.empty": "No books found in the CSV",
+    "unknown": "(unknown)",
+    "q.book": "“{t}”",
+    "list.sep": ", ",
+    "list.more": " and others ({n} in total)",
+    "imp.first": "Imported {n} {n|book|books}{unplaced}.",
+    "imp.again": "Imported {n} {n|book|books} ({a} added, {r} removed, {m} relocated){unplaced}.",
+    "imp.unplaced": ", {n} unshelved",
+    "imp.skipped": "Skipped {n} wishlist or no-longer-owned {n|book|books}.",
+    "imp.allDone": "Pending list cleared: {n} {n|item|items} done ✓",
+    "imp.someDone": "Pending: {d} done, {l} left.",
+    "imp.left": "{n} {n|item|items} still pending.",
+    "imp.overridden": "BookBuddy now has a different location for {books}, so the BookBuddy location was used.",
+    "imp.invalid": "The location set in BookBuddy for {books} isn't on the bookshelf, so the Pending list was left as is for now.",
+    "imp.lost": "Removed {n} pending {n|item|items} whose books couldn't be found (maybe deleted in BookBuddy): {books}",
+    "backup.none": "No data to back up yet",
+    "backup.file": "Virtual-Bookshelf-backup",
+    "backup.name": "Backup",
+    "restore.unreadable": "Couldn't read the backup file",
+    "restore.notOurs": "This isn't a Virtual Bookshelf backup file",
+    "restore.confirmSync": "Replace your current data with this backup? Sync is on, so the data on your other devices will be replaced too.",
+    "restore.confirm": "Replace the current data on this device with this backup?",
+    "restore.done": "Restored from backup: {n} {n|book|books}, {m} pending",
+    "file.readFail": "Couldn't read the file: {err}",
+    "vol": "Vol. {n}",
+    "gap.label": "Gap",
+    "gap.remove": "Remove this gap",
+    "plate": "{id} · {n} {n|book|books}",
+    "plate.top": "{id} top · {n} {n|book|books}",
+    "reord.reset": "↺ Back to auto-sort",
+    "reord.addGap": "+ Gap",
+    "tray.title": "Unshelved · {n} {n|book|books}",
+    "tray.sub": "No location in BookBuddy, or the location doesn't exist on the bookshelf",
+    "tray.empty": "None",
+    "chip.clear": "✕ Clear filter",
+    "hint.main": "In Safari, tap Share → “Add to Home Screen”, then open the bookshelf from your Home Screen from now on. Safari may clear website data if you don't open the site for 7 days, but the Home Screen version won't.",
+    "hint.sync": " The two don't share data, so just set up sync again in the Home Screen version.",
+    "hint.backup": " The two don't share data, so export a backup in Settings first, then import it in the Home Screen version.",
+    "emptyIOS.app": "If you've already set up sync on another device, just tap “Sync from another device”. When you export the CSV from BookBuddy, choose “Save to Files” so you can pick it here.",
+    "emptyIOS.safari": "Tip: First tap Safari's Share button → “Add to Home Screen”, then open the bookshelf from your Home Screen and import there. Safari may clear website data if you don't open the site for 7 days, but the Home Screen version won't. The two also don't share data.",
+    "res.found": "{n} {n|book|books} found",
+    "res.inGenre": " (in selected genres only)",
+    "res.more": "{n} more. Type a few more characters to narrow it down",
+    "res.noneInGenre": "No results for “{q}” in the selected genres",
+    "res.allGenres": "Search all genres ({n} {n|book|books})",
+    "res.none": "No results for “{q}”",
+    "where.here": "this shelf",
+    "where.top": "the cabinet top",
+    "where.only": "The only book on {where}",
+    "where.right": "In the right-hand group, book {r} from the right ({n} {n|book|books} on {where})",
+    "where.left": "Book {i} from the left ({n} {n|book|books} on {where})",
+    "where.auto": "{n} {n|book|books} on {where}; shown as book {i} from the left on the virtual bookshelf (books within a shelf are auto-sorted and may not match the real order)",
+    "where.shelf": "Cabinet {col}, shelf {n} (counting from the bottom)",
+    "where.cabTop": "Top of cabinet {col}",
+    "opt.pick": "Choose a location…",
+    "opt.cab": "Cabinet {c}",
+    "opt.top": "{id} (cabinet top)",
+    "opt.shelf": "{id} (shelf {n})",
+    "d.author": "Author",
+    "d.translator": "Translator",
+    "d.editor": "Editor",
+    "d.series": "Series",
+    "d.publisher": "Publisher",
+    "d.year": "Year",
+    "d.isbn": "ISBN",
+    "d.pages": "Pages",
+    "d.genre": "Genre",
+    "d.lang": "Language",
+    "d.loaned": "Loaned to",
+    "d.both": "{a} ({b})",
+    "d.unplaced": "Unshelved",
+    "d.badLoc": "The BookBuddy location is “{loc}”, which doesn't exist on the bookshelf",
+    "d.noLoc": "No location set in BookBuddy",
+    "d.pending": "Moved on the virtual bookshelf: <b>{from} → {to}</b><br>Not yet updated in BookBuddy. Once you update it there and re-import the CSV, this will clear automatically.",
+    "d.undo": "Undo move",
+    "d.moveTo": "Move to",
+    "d.moveBtn": "Move",
+    "d.notes": "Notes",
+    "d.summary": "Summary",
+    "toast.already": "Already at {to}",
+    "toast.moved": "“{title}”: {from} → {to}. Added to the Pending list.",
+    "toast.movedBack": "“{title}” is back at {to}, where BookBuddy has it. Nothing to update.",
+    "toast.gapAdded": "Added a gap to {id} (at the far right). Drag it between the left and right groups of books.",
+    "toast.gapManual": "This shelf now uses manual ordering.",
+    "toast.undo": "“{title}” moved back to {loc}",
+    "toast.reset": "{id} is back to auto-sort",
+    "toast.resetGap": " (gaps removed)",
+    "edit.text": "Arrange mode: drag a spine to move a book",
+    "edit.textTouch": "Arrange mode: press and hold a spine, then drag",
+    "edit.tipTouch": "Press and hold a spine until it lifts, then drag. Swiping without holding scrolls the view.",
+    "edit.tip": "Dragging within a shelf only changes the order (saved on this device). Dragging to another shelf adds the book to the Pending list, so you can update it in BookBuddy later.",
+    "sync.colhd": "Now in BookBuddy → Change to",
+    "sync.bad": "“{loc}” in BookBuddy isn't on the bookshelf",
+    "sync.find": "Show",
+    "sync.undo": "Undo",
+    "sync.none": "Nothing pending ✓",
+    "copy.header": "Update the Physical Location of these books in BookBuddy ({n} total):",
+    "copy.item": "{i}. “{title}”{author}: {from} → {to}",
+    "copy.author": " ({a})",
+    "copy.ok": "List copied",
+    "copy.fail": "Couldn't copy. Please copy it by hand.",
+    "menu.meta": "Last import: {time}{name} · {n} {n|book|books}",
+    "menu.metaNone": "No books imported yet.",
+    "resetAll.confirm": "Clear manual ordering on all shelves and switch everything back to auto-sort?",
+    "resetAll.done": "All manual ordering cleared",
+    "clear.confirmSync": "Clear the data on this device and stop syncing here? Your data in the cloud and in BookBuddy won't be affected.",
+    "clear.confirm": "Clear the books, manual ordering, and Pending list on this device? Your data in BookBuddy won't be affected.",
+    "gh.401": "The token is invalid or has expired. Set up sync again in Settings",
+    "gh.403": "The token doesn't have read and write access to this repository (Contents must be set to Read and write)",
+    "gh.other": "GitHub returned error {s}. Will try again shortly",
+    "gh.badFile": "{file} in the cloud isn't Virtual Bookshelf data, so it was left untouched",
+    "gh.mergeFail": "Couldn't merge with the cloud data after several tries. Will try again shortly",
+    "sync.fromCloud": "Synced from the cloud: {n} {n|book|books}, {m} pending",
+    "sync.fromDevice": "Synced changes from {d}",
+    "sync.fromOther": "Synced changes from another device",
+    "sync.failToast": "⚠️ Sync failed: {err}",
+    "ago.now": "just now",
+    "ago.min": "{n} {n|minute|minutes} ago",
+    "ago.hour": "{n} {n|hour|hours} ago",
+    "status.off": "Off. When it's on, your books, shelf order, and Pending list sync automatically across your Mac, iPhone, and iPad.",
+    "status.on": "Connected to {repo} · {state}",
+    "status.busy": "Syncing…",
+    "status.offlineDirty": "Offline. Changes not yet uploaded will sync automatically when you're back online",
+    "status.offline": "Offline. Will sync automatically when you're back online",
+    "status.dirty": "Changes waiting to upload…",
+    "status.at": "Last synced {ago}",
+    "status.never": "Not synced yet",
+    "conn.net": "Can't reach GitHub. Check your network connection",
+    "conn.401": "The token is invalid or has expired",
+    "conn.404": "Repository not found, or the token doesn't have access to it",
+    "conn.public": "This repository is public, so anyone can see your book list. Please use a private repository instead.",
+    "conn.ok": "Sync is on: {n} {n|book|books}, {m} pending.\nOn your other devices, choose “⋯ → Set up sync” and paste this device's sync code.",
+    "conn.badRepo": "Enter the repository as “username/repository”, e.g. yourname/bookshelf-data",
+    "conn.noToken": "Please enter an access token",
+    "conn.busy": "Connecting…",
+    "syncNow.ok": "Synced",
+    "code.copied": "Sync code copied. On another device, open Virtual Bookshelf, choose “⋯ → Set up sync”, and paste it in (devices signed in with the same Apple ID can paste it directly).\nThe sync code contains your token. Don't share it with anyone.",
+    "code.fail": "Couldn't copy",
+    "stop.confirm": "Stop syncing on this device? The data on this device will be kept, and nothing in the cloud will be deleted.",
+    "stop.done": "Sync stopped on this device",
+  },
+};
+let LANG = 'zh-Hans';            // 没选过就用简体中文
+const savedLang = () => { try { const l = localStorage.getItem(LANG_KEY); return LANGS.includes(l) ? l : ''; } catch (e) { return ''; } };
+// {n} 换成参数；{n|book|books} 按 n 是不是 1 选单复数（英文用）
+function t(key, v) {
+  const s = (MSG[LANG] && MSG[LANG][key] != null) ? MSG[LANG][key] : MSG['zh-Hans'][key];
+  if (s == null) return key;
+  return s.replace(/\{(\w+)(?:\|([^|}]*)\|([^}]*))?\}/g, (m, k, one, many) => {
+    const x = v ? v[k] : undefined;
+    if (one !== undefined) return Number(x) === 1 ? one : many;
+    return x == null ? '' : String(x);
+  });
+}
+function applyStatic() {
+  document.documentElement.lang = LANG;
+  document.title = t('app.title');
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll('[data-i18n-html]')) el.innerHTML = t(el.dataset.i18nHtml);
+  for (const el of document.querySelectorAll('[data-i18n-ph]')) el.placeholder = t(el.dataset.i18nPh);
+  for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+}
+const GENRE_HANT = {
+  "Fiction": "小說",
+  "Science & Technology": "科學與技術",
+  "Music": "音樂",
+  "Philosophy & Sociology": "哲學與社會",
+  "Biography & Memoir": "傳記回憶錄",
+  "Lifestyle": "生活風格",
+  "Art": "藝術",
+  "Medical": "醫學",
+  "Audio & Video": "影音",
+  "Games & Activities": "遊戲與活動",
+  "Language": "語言",
+  "Religion": "宗教",
+  "Law": "法律",
+  "Psychology": "心理學",
+  "Business & Economics": "商業理財",
+  "Travel": "旅遊",
+  "Nature": "自然",
+  "History": "歷史",
+  "Poetry": "詩歌",
+  "Cooking": "飲食料理",
+  "Comics & Graphic Novels": "漫畫",
+  "Education": "教育",
+  "Reference": "工具書",
+  "Health & Fitness": "健康",
+  "Computers": "電腦",
+  "Mathematics": "數學",
+  "Political Science": "政治",
+  "Social Science": "社會科學",
+  "Self-Help": "自我成長",
+  "Sports & Recreation": "運動休閒",
+  "Drama": "戲劇",
+  "Literary Criticism": "文學評論",
+  "Juvenile Fiction": "兒童小說",
+  "Juvenile Nonfiction": "兒童讀物",
+  "Crafts & Hobbies": "手作嗜好",
+  "Design": "設計",
+  "Photography": "攝影",
+  "Architecture": "建築",
+  "Humor": "幽默",
+  "Family & Relationships": "家庭關係",
+  "Gardening": "園藝",
+  "Pets": "寵物",
+  "House & Home": "居家",
+  "True Crime": "真實犯罪",
+  "Performing Arts": "表演藝術",
+  "Foreign Language Study": "外語學習",
+  "Literary Collections": "文學選集",
+  "Essays": "散文隨筆",
+  "Body, Mind & Spirit": "身心靈",
+  "Transportation": "交通",
+  "Antiques & Collectibles": "古董收藏",
+};
+// 用户自己起的中文分类名（不在 BookBuddy 的标准分类里）
+const GENRE_CUSTOM = {
+  '古代文學': { 'zh-Hans': '古代文学', 'zh-Hant': '古代文學', en: 'Classical Chinese Literature' },
+  '古代文学': { 'zh-Hans': '古代文学', 'zh-Hant': '古代文學', en: 'Classical Chinese Literature' },
+  '文字學': { 'zh-Hans': '文字学', 'zh-Hant': '文字學', en: 'Chinese Philology' },
+  '文字学': { 'zh-Hans': '文字学', 'zh-Hant': '文字學', en: 'Chinese Philology' },
+};
+const LANG_NAMES = {
+  'zh-Hans': { Chinese: '中文', English: '英文', Japanese: '日文', Korean: '韩文', French: '法文', German: '德文', Spanish: '西班牙文', Italian: '意大利文', Russian: '俄文', Portuguese: '葡萄牙文', Latin: '拉丁文' },
+  'zh-Hant': { Chinese: "中文", English: "英文", Japanese: "日文", Korean: "韓文", French: "法文", German: "德文", Spanish: "西班牙文", Italian: "義大利文", Russian: "俄文", Portuguese: "葡萄牙文", Latin: "拉丁文" },
+  en: {},
 };
 const LANG_ZH = {
   Chinese: '中文', English: '英文', Japanese: '日文', Korean: '韩文', French: '法文', German: '德文',
@@ -552,7 +1286,7 @@ const STANDALONE = navigator.standalone === true || !!(window.matchMedia && matc
 const ON_WEB = /^https?:$/.test(location.protocol);
 const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
 const DEVICE = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'iPad'
-  : /iPhone|iPod/.test(navigator.userAgent) ? 'iPhone' : /Mac/.test(navigator.platform) ? 'Mac' : '电脑';
+  : /iPhone|iPod/.test(navigator.userAgent) ? 'iPhone' : /Mac/.test(navigator.platform) ? 'Mac' : 'Browser';
 
 /* ---------- DOM ---------- */
 const $ = id => document.getElementById(id);
@@ -581,14 +1315,27 @@ function normLoc(raw) {
   return m ? m[1] + m[2] : s;
 }
 // 给人看的位置：书架上有的就写编号，没有的写「未上架」
-const locLabel = b => SHELF.has(b._loc) ? b._loc : '未上架' + (b.loc ? `（BookBuddy 里是 ${b.loc}）` : '');
+const locLabel = b => SHELF.has(b._loc) ? b._loc : b.loc ? t('loc.unplacedBB', { loc: b.loc }) : t('loc.unplaced');
 function div(cls) { const el = document.createElement('div'); el.className = cls; return el; }
 function box(cls, st) {
   const el = div(cls);
   for (const k in st) el.style[k] = st[k] + 'px';
   return el;
 }
-const genreLabel = g => g ? (GENRE_ZH[g] || g) : '未分类';
+// 分类的显示名：BookBuddy 的标准英文分类按界面语言翻译；自己起的名字原样显示
+function genreName(g, lang = LANG) {
+  if (!g) return t('genre.none');
+  if (GENRE_CUSTOM[g]) return GENRE_CUSTOM[g][lang] || g;
+  if (lang === 'en') return g;
+  return (lang === 'zh-Hant' ? GENRE_HANT[g] : GENRE_ZH[g]) || g;
+}
+// 同时显示英文时用的英文名（没有就是空）
+function genreEnglish(g) {
+  if (!g) return '';
+  if (GENRE_CUSTOM[g]) return GENRE_CUSTOM[g].en || '';
+  return /^[\x20-\x7e]+$/.test(g) ? g : '';
+}
+const genreLabel = g => genreName(g);
 function luminance(hex) {
   const n = parseInt(hex.slice(1), 16);
   return [n >> 16, (n >> 8) & 255, n & 255].map(v => {
@@ -605,7 +1352,7 @@ function textOn(hex) {
 /* ---------- 状态 ---------- */
 // moves / orders 之外还记着删除和修改的时间（gone、orderAt），多台设备合并时逐条取最新的
 function blank() {
-  return { v: 1, books: [], moves: {}, gone: {}, orders: {}, orderAt: {}, settings: { sort: 'genre', sortAt: 0, colors: {} }, meta: null };
+  return { v: 1, books: [], moves: {}, gone: {}, orders: {}, orderAt: {}, settings: { sort: 'genre', sortAt: 0, colors: {}, lang: '', langAt: 0, genreEn: false, genreEnAt: 0 }, meta: null };
 }
 // 读本地数据或备份文件时逐项检查，格式不对的丢掉
 function normalizeState(s) {
@@ -622,13 +1369,19 @@ function normalizeState(s) {
   for (const [id, list] of Object.entries(s.orders && typeof s.orders === 'object' ? s.orders : {})) {
     if (SHELF.has(id) && Array.isArray(list)) out.orders[id] = list.filter(k => typeof k === 'string');
   }
-  for (const [k, t] of Object.entries(s.gone && typeof s.gone === 'object' ? s.gone : {})) if (Number(t) > 0) out.gone[k] = Number(t);
-  for (const [id, t] of Object.entries(s.orderAt && typeof s.orderAt === 'object' ? s.orderAt : {})) {
-    if (SHELF.has(id) && Number(t) > 0) out.orderAt[id] = Number(t);
+  for (const [k, ts] of Object.entries(s.gone && typeof s.gone === 'object' ? s.gone : {})) if (Number(ts) > 0) out.gone[k] = Number(ts);
+  for (const [id, ts] of Object.entries(s.orderAt && typeof s.orderAt === 'object' ? s.orderAt : {})) {
+    if (SHELF.has(id) && Number(ts) > 0) out.orderAt[id] = Number(ts);
   }
+  // 早期版本排的顺序没有记时间：补一个最小的时间，让它能胜过「这层从来没排过」的设备，又不会盖过以后真正的修改
+  for (const id of Object.keys(out.orders)) if (!out.orderAt[id]) out.orderAt[id] = 1;
   const st = s.settings && typeof s.settings === 'object' ? s.settings : {};
   if (SORTS.includes(st.sort)) out.settings.sort = st.sort;
   out.settings.sortAt = Number(st.sortAt) || 0;
+  if (LANGS.includes(st.lang)) out.settings.lang = st.lang;
+  out.settings.langAt = Number(st.langAt) || 0;
+  out.settings.genreEn = st.genreEn === true;
+  out.settings.genreEnAt = Number(st.genreEnAt) || 0;
   for (const [g, c] of Object.entries(st.colors && typeof st.colors === 'object' ? st.colors : {})) {
     if (/^#[0-9a-f]{6}$/i.test(c)) out.settings.colors[g] = c;
   }
@@ -646,7 +1399,7 @@ function persist() {
     saveError = '';
     return true;
   } catch (e) {
-    saveError = e && e.name === 'QuotaExceededError' ? '存储空间不够' : str((e && e.message) || e);
+    saveError = e && e.name === 'QuotaExceededError' ? t('save.quota') : str((e && e.message) || e);
     toast('');
     return false;
   }
@@ -676,7 +1429,8 @@ function loadLocal() {
     editTipShown: l.editTipShown === true, hintAt: Number(l.hintAt) || 0, backupAt: Number(l.backupAt) || 0,
     sync: c && /^[\w.-]+\/[\w.-]+$/.test(c.repo) && c.token && typeof c.token === 'string' ? {
       repo: c.repo, token: c.token, sha: c.sha ? str(c.sha) : null, etag: c.etag ? str(c.etag) : null,
-      dirty: c.dirty === true, at: Number(c.at) || 0, err: str(c.err), offline: c.offline === true,
+      dirty: c.dirty === true, at: Number(c.at) || 0, offline: c.offline === true,
+      err: c.err && typeof c.err === 'object' ? (c.err.k ? { k: str(c.err.k), v: c.err.v && typeof c.err.v === 'object' ? c.err.v : {} } : { text: str(c.err.text) }) : str(c.err),
     } : null,
   };
 }
@@ -701,26 +1455,28 @@ const COLL = new Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'en'], { numeric: true
 let toastTimer = 0;
 function toast(msg, ms = 3500) {
   if (saveError) {
-    msg = (msg ? msg + '\n' : '') + `⚠️ 没能保存到这台设备（${saveError}），` +
-      (L.sync ? '不过同步开着，改动仍会上传到云端。' : '关掉页面后这些改动会丢失。可以在设置里导出备份。');
+    msg = (msg ? msg + '\n' : '') + t('save.fail', { err: saveError }) + t(L.sync ? 'save.failSync' : 'save.failLocal');
     ms = Math.max(ms, 9000);
   }
   if (!msg) return;
-  const t = $('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
 /* ---------- 修改待同步和手动排序（顺便记下时间，合并时用） ---------- */
+// 手动排序里可以夹「空位」，写成 |gap|xxx：空位左边的书靠左，右边的书靠右
+const isGap = k => typeof k === 'string' && k.startsWith('|gap|');
 function setMove(k, m) { S.moves[k] = m; delete S.gone[k]; }
 function dropMove(k, at = Date.now()) { if (S.moves[k]) { delete S.moves[k]; S.gone[k] = at; } }
 function setOrder(id, list) { S.orders[id] = list; S.orderAt[id] = Date.now(); }
 function resetOrder(id) { delete S.orders[id]; S.orderAt[id] = Date.now(); }
 
 /* ---------- CSV ---------- */
-function parseCSV(t) {
+function parseCSV(text) {
+  const t = text;
   const first = t.slice(0, t.indexOf('\n') >>> 0);
   const count = ch => first.split(ch).length;
   const sep = count(';') > count(',') ? ';' : count('\t') > count(',') ? '\t' : ',';
@@ -774,8 +1530,8 @@ function matchLostBooks(old, books) {
   ];
   for (const o of old.values()) {
     if (now.has(o.k)) continue;
-    for (const t of tests) {
-      const pred = t(o);
+    for (const test of tests) {
+      const pred = test(o);
       if (!pred) continue;
       const c = fresh.filter(b => !used.has(b.k) && pred(b));
       if (c.length === 1) { map.set(o.k, c[0].k); used.add(c[0].k); break; }
@@ -790,7 +1546,7 @@ function importCsv(text, name) {
   const col = {};
   hdr.forEach((h, i) => { if (!(h in col)) col[h] = i; });
   if (!('Title' in col) || !('Physical Location' in col)) {
-    toast('这个文件不像 BookBuddy 导出的 CSV（没找到 Title 或 Physical Location 这两列）', 6000);
+    toast(t('csv.notBB'), 6000);
     return;
   }
   const get = (r, n) => (n in col ? (r[col[n]] || '') : '').trim();
@@ -809,7 +1565,7 @@ function importCsv(text, name) {
       notes: get(r, 'Notes'), summary: get(r, 'Summary'), loaned: get(r, 'Loaned To'),
     });
   }
-  if (!books.length) { toast('CSV 里没有找到书', 5000); return; }
+  if (!books.length) { toast(t('csv.empty'), 5000); return; }
   assignKeys(books);
 
   const first = !S.books.length, old = BOOK;
@@ -837,16 +1593,12 @@ function importCsv(text, name) {
   const done = [], overridden = [], invalid = [], lost = [];
   for (const [k, m] of Object.entries(S.moves)) {
     const b = now.get(k);
-    if (!b) { lost.push((old.get(k) || {}).title || '（未知）'); dropMove(k); continue; }
+    if (!b) { lost.push((old.get(k) || {}).title || t('unknown')); dropMove(k); continue; }
     const loc = normLoc(b.loc);
     if (loc === m.to) { done.push(b); dropMove(k); }
     else if (loc === normLoc(m.from)) continue;                  // BookBuddy 里还没改
     else if (!SHELF.has(loc)) invalid.push(b);                   // 改成了书架上没有的位置：先保留
     else { overridden.push(b); dropMove(k); }                    // 改成了别的层：以 BookBuddy 为准
-  }
-  for (const id of Object.keys(S.orders)) {
-    S.orders[id] = S.orders[id].filter(k => now.has(k));
-    if (!S.orders[id].length) delete S.orders[id];
   }
   S.books = books;
   S.meta = { name: name || '', at: Date.now(), n: books.length };
@@ -858,31 +1610,31 @@ function importCsv(text, name) {
   if (first) { fit(); requestPersist(); }
 
   const left = Object.keys(S.moves).length;
-  const names = list => list.slice(0, 3).map(t => `《${t}》`).join('') + (list.length > 3 ? ` 等 ${list.length} 本` : '');
-  const lines = [`已导入 ${books.length} 本书` + (first ? '' : `（新增 ${added}，移除 ${removed}，换位置 ${relocated}）`) +
-    (D.unplaced.length ? `，${D.unplaced.length} 本未上架` : '') + '。'];
-  if (skipped) lines.push(`忽略了 ${skipped} 本心愿单 / 已不拥有的书。`);
-  if (done.length && !left) lines.push(`待同步的 ${done.length} 项都改好了 ✓`);
-  else if (done.length) lines.push(`待同步：完成 ${done.length} 项，还剩 ${left} 项。`);
-  else if (left) lines.push(`还有 ${left} 项待同步。`);
-  if (overridden.length) lines.push(`${names(overridden.map(b => b.title))}在 BookBuddy 里改成了别的位置，已按 BookBuddy 为准。`);
-  if (invalid.length) lines.push(`${names(invalid.map(b => b.title))}在 BookBuddy 里填的位置书架上没有，待同步先保留。`);
-  if (lost.length) lines.push(`有 ${lost.length} 条待同步找不到对应的书（可能在 BookBuddy 里删掉了），已移除：${names(lost)}`);
+  const names = list => list.slice(0, 3).map(x => t('q.book', { t: x })).join(t('list.sep')) + (list.length > 3 ? t('list.more', { n: list.length }) : '');
+  const unplaced = D.unplaced.length ? t('imp.unplaced', { n: D.unplaced.length }) : '';
+  const lines = [first ? t('imp.first', { n: books.length, unplaced }) : t('imp.again', { n: books.length, a: added, r: removed, m: relocated, unplaced })];
+  if (skipped) lines.push(t('imp.skipped', { n: skipped }));
+  if (done.length && !left) lines.push(t('imp.allDone', { n: done.length }));
+  else if (done.length) lines.push(t('imp.someDone', { d: done.length, l: left }));
+  else if (left) lines.push(t('imp.left', { n: left }));
+  if (overridden.length) lines.push(t('imp.overridden', { books: names(overridden.map(b => b.title)) }));
+  if (invalid.length) lines.push(t('imp.invalid', { books: names(invalid.map(b => b.title)) }));
+  if (lost.length) lines.push(t('imp.lost', { n: lost.length, books: names(lost) }));
   toast(lines.join('\n'), 6000 + 2500 * lines.length);
 }
 
 /* ---------- 备份 ---------- */
 function backup() {
-  if (!S.books.length) { toast('还没有数据可以备份'); return; }
+  if (!S.books.length) { toast(t('backup.none')); return; }
   const data = JSON.stringify({ app: 'vshelf', v: 1, exportedAt: new Date().toISOString(), state: S }, replacer);
   const d = new Date(), p = n => String(n).padStart(2, '0');
-  const name = `虚拟书架备份-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json`;
+  const name = `${t('backup.file')}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json`;
   const done = () => { L.backupAt = Date.now(); saveLocal(); if (dlgSync.open) renderSync(); };
   // iPhone / iPad 上用系统分享面板（可以「存储到文件」或者隔空投送）
   if (IS_IOS && typeof File === 'function' && navigator.canShare) {
     const file = new File([data], name, { type: 'application/json' });
     if (navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: '虚拟书架备份' }).then(done, e => {
+      navigator.share({ files: [file], title: t('backup.file') }).then(done, e => {
         if (!e || e.name !== 'AbortError') { download(data, name); done(); }
       });
       return;
@@ -901,17 +1653,23 @@ function download(data, name) {
 }
 function restore(text) {
   let d;
-  try { d = JSON.parse(text); } catch (e) { toast('备份文件读不出来'); return; }
-  if (!d || d.app !== 'vshelf' || !d.state || !Array.isArray(d.state.books)) { toast('这不是虚拟书架的备份文件'); return; }
-  if (S.books.length && !confirm(L.sync ? '用这个备份覆盖现在的数据吗？开着同步，其它设备上的也会一起被覆盖。' : '用这个备份覆盖这台设备上现在的数据吗？')) return;
+  try { d = JSON.parse(text); } catch (e) { toast(t('restore.unreadable')); return; }
+  if (!d || d.app !== 'vshelf' || !d.state || !Array.isArray(d.state.books)) { toast(t('restore.notOurs')); return; }
+  if (S.books.length && !confirm(t(L.sync ? 'restore.confirmSync' : 'restore.confirm'))) return;
   const prev = S, now = Date.now();
   S = normalizeState(d.state);
   // 恢复备份算作「现在」做的修改，这样同步时备份里的内容会盖过其它设备上更早的数据
-  S.meta = Object.assign({ name: '备份', n: S.books.length }, S.meta, { at: now });
+  S.meta = Object.assign({ name: t('backup.name'), n: S.books.length }, S.meta, { at: now });
   for (const m of Object.values(S.moves)) m.at = now;
   for (const k of [...Object.keys(prev.moves), ...Object.keys(prev.gone)]) if (!S.moves[k]) S.gone[k] = now;
   for (const sh of SHELVES) S.orderAt[sh.id] = now;
   S.settings.sortAt = now;
+  // 备份里没有界面语言（比如旧版本导出的）就保留现在的；有的话算作现在改的
+  const bs = (d.state.settings && typeof d.state.settings === 'object') ? d.state.settings : {};
+  if (LANGS.includes(bs.lang)) S.settings.langAt = now;
+  else { S.settings.lang = prev.settings.lang; S.settings.langAt = prev.settings.langAt; }
+  if (typeof bs.genreEn === 'boolean') S.settings.genreEnAt = now;
+  else { S.settings.genreEn = prev.settings.genreEn; S.settings.genreEnAt = prev.settings.genreEnAt; }
   selectedK = null;
   rebuildIndex();
   ensureColors();
@@ -919,11 +1677,11 @@ function restore(text) {
   render();
   fit();
   requestPersist();
-  toast(`已从备份恢复：${S.books.length} 本书，${Object.keys(S.moves).length} 项待同步`, 5000);
+  toast(t('restore.done', { n: S.books.length, m: Object.keys(S.moves).length }), 5000);
 }
 async function importFile(file) {
   let text;
-  try { text = await file.text(); } catch (e) { toast('读取文件失败：' + e.message); return; }
+  try { text = await file.text(); } catch (e) { toast(t('file.readFail', { err: e.message })); return; }
   if (/\.json$/i.test(file.name) || /^\s*\{/.test(text)) restore(text);
   else importCsv(text, file.name);
 }
@@ -950,7 +1708,7 @@ function rebuildIndex() {
   for (const g of byTitle.values()) {
     if (g.length < 2) continue;
     const subsUnique = new Set(g.map(b => b.subtitle)).size === g.length;
-    for (const b of g) b._x = subsUnique && b.subtitle ? b.subtitle : b.volume ? `第 ${b.volume} 卷` : b.subtitle;
+    for (const b of g) b._x = subsUnique && b.subtitle ? b.subtitle : b.volume ? t('vol', { n: b.volume }) : b.subtitle;
   }
 }
 function genreCounts() {
@@ -987,20 +1745,38 @@ function comparator(mode) {
 function derive() {
   const byShelf = new Map(SHELVES.map(s => [s.id, []])), unplaced = [];
   for (const b of S.books) (byShelf.get(effLoc(b)) || unplaced).push(b);
-  const cmp = comparator(S.settings.sort), pos = new Map();
+  const cmp = comparator(S.settings.sort), pos = new Map(), seq = new Map();
   for (const [id, list] of byShelf) {
     const ord = S.orders[id];
+    let keys = null;
     if (ord && ord.length) {
       const idx = new Map(ord.map((k, i) => [k, i]));
-      list.sort((a, b) => {
-        const ia = idx.has(a.k) ? idx.get(a.k) : Infinity, ib = idx.has(b.k) ? idx.get(b.k) : Infinity;
-        return ia === ib ? cmp(a, b) : ia < ib ? -1 : 1;
-      });
+      const at = b => (idx.has(b.k) ? idx.get(b.k) : Infinity);
+      list.sort((a, b) => (at(a) === at(b) ? cmp(a, b) : at(a) < at(b) ? -1 : 1));
+      // 空位按它在手动顺序里的位置插回书中间
+      const gaps = ord.filter(isGap);
+      if (gaps.length) {
+        keys = [];
+        // 不在手动顺序里的书（新导入的、用「移到」挪进来的）接在最后一本排过的书后面，不跑到尾部空位的右边去
+        const lastAt = list.reduce((m, b) => (idx.has(b.k) ? Math.max(m, idx.get(b.k)) : m), -1);
+        let gi = 0;
+        for (const b of list) {
+          const lim = idx.has(b.k) ? idx.get(b.k) : lastAt;
+          while (gi < gaps.length && idx.get(gaps[gi]) < lim) keys.push(gaps[gi++]);
+          keys.push(b.k);
+        }
+        keys.push(...gaps.slice(gi));
+      }
     } else list.sort(cmp);
-    list.forEach((b, i) => pos.set(b.k, { s: id, i, n: list.length }));
+    keys = keys || list.map(b => b.k);
+    seq.set(id, keys);
+    // 最后一个空位右边的书靠右放，找书时从右往左数更方便
+    const last = keys.findLastIndex ? keys.findLastIndex(isGap) : keys.map(isGap).lastIndexOf(true);
+    const right = last < 0 ? 0 : keys.length - 1 - last;
+    list.forEach((b, i) => pos.set(b.k, { s: id, i, n: list.length, r: i >= list.length - right ? list.length - i : 0 }));
   }
   unplaced.sort((a, b) => COLL.compare(a.loc, b.loc) || cmp(a, b));
-  D = { byShelf, pos, unplaced };
+  D = { byShelf, pos, unplaced, seq };
 }
 
 /* ---------- 画书架 ---------- */
@@ -1008,7 +1784,11 @@ function geometry() {
   let base = 380;
   for (const c of LAYOUT) {
     let need = 0;
-    for (const s of SHELVES) if (s.col === c.id) need = Math.max(need, D.byShelf.get(s.id).reduce((a, b) => a + b._w + 1, 0));
+    for (const s of SHELVES) {
+      if (s.col !== c.id) continue;
+      const gaps = D.seq.get(s.id).filter(isGap).length;
+      need = Math.max(need, D.byShelf.get(s.id).reduce((a, b) => a + b._w + 1, 0) + gaps * 36);
+    }
     base = Math.max(base, (Math.ceil(need * 1.04) + 2 * PAD + 2 * ST + 24) / (c.width || 1));
   }
   base = Math.ceil(base);
@@ -1021,28 +1801,121 @@ function geometry() {
   }
   return { w: x - GAP + M, h: 0, cols, floorY: M + TOP_UNITS * U, yTop: yu => M + (TOP_UNITS - yu) * U };
 }
+/* 书脊上的字：书名尽量完整显示（字号从 12 往下缩，书脊够宽时分两三列），还有地方再放作者 */
+const SPINE_FONT = '"Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif';
+const LH = 1.12, PADV = 6, FS_MAX = 12, FS_MIN = 7;
+let measureCtx = null;
+const textLens = new Map();
+function textLen(t) {          // 字号 1px 时这段字竖排有多长
+  let v = textLens.get(t);
+  if (v == null) {
+    if (!measureCtx) { measureCtx = document.createElement('canvas').getContext('2d'); measureCtx.font = `500 100px ${SPINE_FONT}`; }
+    v = measureCtx.measureText(t).width / 100;
+    textLens.set(t, v);
+  }
+  return v;
+}
+// n 列、字号 fs 时能放多长的字（换列时大约浪费不到一个字）
+const capacity = (H, fs, n) => n * H - (n - 1) * fs * 0.8;
+function ellipsize(t, room, fs) {
+  if (textLen(t) * fs <= room) return t;
+  const ch = [...t];
+  let lo = 0, hi = ch.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (textLen(ch.slice(0, mid).join('') + '…') * fs <= room) lo = mid; else hi = mid - 1;
+  }
+  return ch.slice(0, lo).join('').trimEnd() + '…';
+}
+function spineLayout(b, w, h) {
+  const H = h - 2 * PADV, W = w - 4;
+  const out = { lines: [] };
+  let room = W;
+  // 同名的几册书：先放区分用的卷号 / 副标题
+  if (b._x) {
+    let xs = 0;
+    for (let fs = 9.5; fs >= FS_MIN; fs -= 0.5) if (textLen(b._x) * fs <= H) { xs = fs; break; }
+    xs = xs || FS_MIN;
+    if (W - xs * LH >= FS_MIN * LH) {
+      out.lines.push({ text: ellipsize(b._x, H, xs), fs: xs, n: 1, cls: 'a' });
+      room -= xs * LH + 1;
+    } else out.prefix = b._x + ' · ';
+  }
+  const title = (out.prefix || '') + b.title, lt = textLen(title);
+  let best = null, one = null;
+  for (let fs = FS_MAX; fs >= FS_MIN && !best; fs -= 0.5) {
+    for (let n = 1; n <= 3 && n * fs * LH <= room; n++) if (lt * fs <= capacity(H, fs, n)) { best = { fs, n }; break; }
+  }
+  if (best && best.n > 1) {
+    for (let fs = best.fs - 0.5; fs >= Math.max(FS_MIN, best.fs - 1.5) && !one; fs -= 0.5) if (fs * LH <= room && lt * fs <= H) one = { fs, n: 1 };
+    if (one) best = one;
+  }
+  if (!best) {                 // 最小字号也放不下：能放几列放几列，末尾加省略号
+    const n = clamp(Math.floor(room / (FS_MIN * LH)), 1, 3);
+    best = { fs: FS_MIN, n, text: ellipsize(title, capacity(H, FS_MIN, n), FS_MIN) };
+  }
+  out.lines.unshift({ text: best.text || title, fs: best.fs, n: best.n });
+  room -= best.n * best.fs * LH;
+  // 还剩一列的宽度就放作者（太长的话末尾省略）
+  if (!b._x && b.author) {
+    const as = Math.min(9.5, best.fs, Math.floor(room / LH * 2) / 2);
+    if (as >= 8) out.lines.push({ text: ellipsize(b.author, H, as), fs: as, n: 1, cls: 'a' });
+  }
+  return out;
+}
+// 上面是估算，英文按单词换列时会多浪费一些：画出来真放不下的，再缩小字号，最后才截断
+function fixSpineText() {
+  const range = document.createRange();
+  const over = s => {
+    if (s.classList.contains('wrap')) return s.scrollWidth > s.clientWidth + 1 || s.scrollHeight > s.clientHeight + 1;
+    range.selectNodeContents(s);                       // 单列：比较文字实际高度和格子高度（都带着同样的缩放）
+    return range.getBoundingClientRect().height > s.getBoundingClientRect().height + 0.01;
+  };
+  const bad = [];
+  for (const el of SPINE.values()) for (const s of el.children) if (over(s)) bad.push(s);
+  for (const s of bad) {
+    let fs = parseFloat(s.style.fontSize);
+    const n = s.classList.contains('wrap') ? Math.round((parseFloat(s.style.maxWidth) - 0.5) / (fs * LH)) : 1;
+    while (over(s) && fs > FS_MIN) {
+      fs -= 0.5;
+      s.style.fontSize = fs + 'px';
+      if (n > 1) s.style.maxWidth = (n * fs * LH + 0.5) + 'px';
+    }
+    const full = s.textContent;
+    for (let keep = 0.9; over(s) && keep > 0.2; keep -= 0.1) s.textContent = ellipsize(full, textLen(full) * fs * keep, fs);
+  }
+}
 function spineEl(b, maxH) {
   const el = div('spine');
-  const c = colorOf(b.genre);
+  const c = colorOf(b.genre), h = Math.min(b._h, maxH || Infinity);
   el.dataset.k = b.k;
   el.style.width = b._w + 'px';
-  el.style.height = Math.min(b._h, maxH || Infinity) + 'px';
+  el.style.height = h + 'px';
   el.style.setProperty('--c', c);
   el.style.color = textOn(c);
   el.title = b.title + (b._x ? ' · ' + b._x : '') + (b.author ? ' — ' + b.author : '');
-  const line = (text, cls) => {
+  for (const ln of spineLayout(b, b._w, h).lines) {
     const s = el.appendChild(document.createElement('span'));
-    if (cls) s.className = cls;
-    s.textContent = text;
-  };
-  if (b._x && b._w >= 24) { line(b.title); line(b._x, 'a'); }
-  else if (b._x) line(b._x + ' · ' + b.title);       // 窄书脊只有一行：把区分用的卷号放前面，免得被省略号吃掉
-  else { line(b.title); if (b._w >= 32 && b.author) line(b.author, 'a'); }
-  if (b._w < 20) el.classList.add('thin');
+    if (ln.cls) s.className = ln.cls;
+    s.style.fontSize = ln.fs + 'px';
+    if (ln.n > 1) { s.classList.add('wrap'); s.style.maxWidth = (ln.n * ln.fs * LH + 0.5) + 'px'; }
+    s.textContent = ln.text;
+  }
   if (S.moves[b.k]) el.classList.add('pending');
   if (b.loaned) el.classList.add('loaned');
   if (b.k === selectedK) el.classList.add('sel');
   SPINE.set(b.k, el);
+  return el;
+}
+function gapEl(k) {
+  const el = div('gap');
+  el.dataset.gap = k;
+  const x = el.appendChild(document.createElement('button'));
+  x.className = 'gx';
+  x.dataset.delgap = k;
+  x.setAttribute('aria-label', t('gap.remove'));
+  x.textContent = '✕';
+  el.appendChild(document.createElement('span')).textContent = t('gap.label');
   return el;
 }
 function shelfEl(s, cg) {
@@ -1053,15 +1926,17 @@ function shelfEl(s, cg) {
   el.dataset.s = s.id;
   const books = el.appendChild(div('inner')).appendChild(div('books'));
   const maxH = s.h * U - BT - 6;    // 矮的格子里，书也画得矮一点
-  for (const b of list) books.appendChild(spineEl(b, maxH));
+  for (const k of D.seq.get(s.id)) books.appendChild(isGap(k) ? gapEl(k) : spineEl(BOOK.get(k), maxH));
   const board = el.appendChild(div('board'));
-  board.appendChild(div('plate')).textContent = `${s.id}${s.top ? ' 柜顶' : ''} · ${list.length}本`;
-  if (S.orders[s.id]) {
+  board.appendChild(div('plate')).textContent = t(s.top ? 'plate.top' : 'plate', { id: s.id, n: list.length });
+  const btn = (cls, key, val, text) => {
     const r = board.appendChild(document.createElement('button'));
-    r.className = 'reord';
-    r.dataset.reset = s.id;
-    r.textContent = '↺ 恢复自动排序';
-  }
+    r.className = cls;
+    r.dataset[key] = val;
+    r.textContent = text;
+  };
+  if (S.orders[s.id]) btn('reord', 'reset', s.id, t('reord.reset'));
+  if (list.length) btn('reord add', 'addgap', s.id, t('reord.addGap'));
   return el;
 }
 function buildCase() {
@@ -1081,16 +1956,17 @@ function buildCase() {
   caseEl.appendChild(frag);
   let h = G.floorY + FLOOR + M;
   if (D.unplaced.length) {
-    const t = box('tray', { left: M, top: h, width: G.w - 2 * M });
-    t.innerHTML = `<h3>未上架 · ${D.unplaced.length} 本<small>BookBuddy 里的位置是空的，或者书架上没有这个位置</small></h3>`;
+    const tray = box('tray', { left: M, top: h, width: G.w - 2 * M });
+    tray.innerHTML = `<h3>${esc(t('tray.title', { n: D.unplaced.length }))}<small>${esc(t('tray.sub'))}</small></h3>`;
     for (const b of D.unplaced) {
-      const it = t.appendChild(div('titem'));
+      const it = tray.appendChild(div('titem'));
       it.appendChild(spineEl(b));
-      it.appendChild(div('tag')).textContent = b.loc || '空';
+      it.appendChild(div('tag')).textContent = b.loc || t('tray.empty');
     }
-    caseEl.appendChild(t);
-    h += t.offsetHeight + M;
+    caseEl.appendChild(tray);
+    h += tray.offsetHeight + M;
   }
+  fixSpineText();
   G.h = h;
   caseEl.style.width = G.w + 'px';
   caseEl.style.height = h + 'px';
@@ -1098,9 +1974,12 @@ function buildCase() {
 }
 function renderLegend() {
   const counts = genreCounts();
-  legend.innerHTML = (genreOn.size ? '<button class="chip clear" data-clear="1">✕ 清除筛选</button>' : '') + [...counts].map(([g, n]) =>
-    `<button class="chip${genreOn.has(g) ? ' on' : ''}" data-g="${esc(g)}" style="--c:${esc(colorOf(g))}"><i></i>${esc(genreLabel(g))}<small>${n}</small></button>`
-  ).join('');
+  const both = S.settings.genreEn && LANG !== 'en';
+  legend.innerHTML = (genreOn.size ? `<button class="chip clear" data-clear="1">${esc(t('chip.clear'))}</button>` : '') + [...counts].map(([g, n]) => {
+    const name = genreLabel(g), en = both ? genreEnglish(g) : '';
+    return `<button class="chip${genreOn.has(g) ? ' on' : ''}" data-g="${esc(g)}" style="--c:${esc(colorOf(g))}"><i></i>${esc(name)}` +
+      (en && en !== name ? `<span class="en">${esc(en)}</span>` : '') + `<small>${n}</small></button>`;
+  }).join('');
 }
 function renderBadge() {
   const n = Object.keys(S.moves).length;
@@ -1112,9 +1991,8 @@ function renderHint() {
   const was = !$('hint').hidden;
   $('hint').hidden = !show;
   if (show) {
-    $('hintText').textContent = '建议在 Safari 里点分享 →「添加到主屏幕」，以后从主屏幕打开：Safari 里的网站数据 7 天不打开可能会被清掉，主屏幕上的不会。' +
-      (L.sync ? '两边的数据不互通，到主屏幕上的书架里再设置一次同步就行。'
-        : Object.keys(S.moves).length || Object.keys(S.orders).length ? '两边的数据不互通，可以先在设置里导出备份，再到主屏幕上的书架里导入。' : '');
+    $('hintText').textContent = t('hint.main') +
+      (L.sync ? t('hint.sync') : Object.keys(S.moves).length || Object.keys(S.orders).length ? t('hint.backup') : '');
   }
   return was !== show;
 }
@@ -1122,11 +2000,21 @@ function renderEmpty() {
   $('empty').hidden = S.books.length > 0;
   const p = $('emptyIOS');
   p.hidden = !IS_IOS;
-  p.textContent = STANDALONE
-    ? '在别的设备上开了同步的话，点「从其他设备同步」就行。BookBuddy 导出 CSV 时可以选「存储到“文件”」，这里就能选到。'
-    : ON_WEB ? '建议先点 Safari 的分享按钮 →「添加到主屏幕」，从主屏幕打开再导入。Safari 里的网站数据 7 天不打开可能会被清掉，主屏幕上的不会；两边的数据也不互通。' : '';
+  p.textContent = STANDALONE ? t('emptyIOS.app') : ON_WEB ? t('emptyIOS.safari') : '';
+}
+function syncLang() {
+  const nl = S.settings.lang || savedLang() || 'zh-Hans';
+  if (nl === LANG) return;
+  LANG = nl;
+  rebuildIndex();               // 卷号「第 N 卷」也要换语言
+  applyStatic();
+  $('editText').textContent = t(COARSE ? 'edit.textTouch' : 'edit.text');
+  renderSyncStatus();
+  if (dlgMenu.open) openMenu();
+  if (!results.hidden) renderResults();
 }
 function render() {
+  syncLang();
   const prev = G && { w: G.w, h: G.h };
   derive();
   buildCase();
@@ -1253,7 +2141,7 @@ function applyHighlight() {
 }
 function locChip(b) {
   const p = D.pos.get(b.k);
-  return p ? `<span class="loc${S.moves[b.k] ? ' acc' : ''}">${esc(p.s)}</span>` : '<span class="loc warn">未上架</span>';
+  return p ? `<span class="loc${S.moves[b.k] ? ' acc' : ''}">${esc(p.s)}</span>` : `<span class="loc warn">${esc(t('loc.unplaced'))}</span>`;
 }
 function renderResults() {
   if (!terms.length || document.activeElement !== qEl) { results.hidden = true; return; }
@@ -1263,17 +2151,17 @@ function renderResults() {
   activeIdx = clamp(activeIdx, 0, Math.max(0, lastResults.length - 1));
   let html;
   if (list.length) {
-    html = `<div class="rh">找到 ${list.length} 本${genreOn.size ? '（只在选中的分类里找）' : ''}</div>` + lastResults.map((b, i) => {
-      const extra = b._x || (b.series && b.volume ? `第 ${b.volume} 卷` : '');
+    html = `<div class="rh">${esc(t('res.found', { n: list.length }) + (genreOn.size ? t('res.inGenre') : ''))}</div>` + lastResults.map((b, i) => {
+      const extra = b._x || (b.series && b.volume ? t('vol', { n: b.volume }) : '');
       const sub = [b.subtitle, extra !== b.subtitle ? extra : ''].filter(Boolean).join(' · ');
       return `<div class="r${i === activeIdx ? ' act' : ''}" data-k="${esc(b.k)}"><span class="sw" style="background:${esc(colorOf(b.genre))}"></span>` +
         `<div class="tx"><div class="tt">${esc(b.title)}${sub ? ` <small>${esc(sub)}</small>` : ''}</div><div class="au">${esc(b.author)}</div></div>${locChip(b)}</div>`;
-    }).join('') + (list.length > lastResults.length ? `<div class="none">还有 ${list.length - lastResults.length} 本，多输几个字试试</div>` : '');
+    }).join('') + (list.length > lastResults.length ? `<div class="none">${esc(t('res.more', { n: list.length - lastResults.length }))}</div>` : '');
   } else if (genreOn.size) {
     const all = S.books.filter(b => matches(b, true)).length;
-    html = `<div class="none">在选中的分类里没有找到「${esc(query)}」` +
-      (all ? `<br><button class="btn sm" data-act="allgenres">在全部分类里找（${all} 本）</button>` : '') + '</div>';
-  } else html = `<div class="none">没有找到「${esc(query)}」</div>`;
+    html = `<div class="none">${esc(t('res.noneInGenre', { q: query }))}` +
+      (all ? `<br><button class="btn sm" data-act="allgenres">${esc(t('res.allGenres', { n: all }))}</button>` : '') + '</div>';
+  } else html = `<div class="none">${esc(t('res.none', { q: query }))}</div>`;
   results.innerHTML = html;
   results.hidden = false;
   fitResults();
@@ -1404,17 +2292,14 @@ function locate(k) {
 function whereInfo(b) {
   const p = D.pos.get(b.k);
   if (!p) return null;
-  const s = SHELF.get(p.s), where = s.top ? '柜顶上' : '这层';
-  let pos;
-  if (p.n === 1) pos = `${where}只有这一本`;
-  else if (S.orders[p.s]) pos = `从左往右第 ${p.i + 1} 本（${where}共 ${p.n} 本）`;
-  else pos = `${where}共 ${p.n} 本，在虚拟书架上是从左数第 ${p.i + 1} 本（层内是自动排序的，和实际摆放不一定一样）`;
-  return { code: s.id, line1: s.top ? `${s.col} 柜顶上` : `${s.col} 柜 · 第 ${s.n} 层（从下往上数）`, line2: pos };
+  const s = SHELF.get(p.s), v = { where: t(s.top ? 'where.top' : 'where.here'), n: p.n, i: p.i + 1, r: p.r };
+  const pos = t(p.n === 1 ? 'where.only' : S.orders[p.s] && p.r ? 'where.right' : S.orders[p.s] ? 'where.left' : 'where.auto', v);
+  return { code: s.id, line1: s.top ? t('where.cabTop', { col: s.col }) : t('where.shelf', { col: s.col, n: s.n }), line2: pos };
 }
 function shelfOptions(cur) {
-  return (cur ? '' : '<option value="" selected disabled>选一个位置…</option>') + LAYOUT.map(c =>
-    `<optgroup label="${c.id} 柜">` + SHELVES.filter(s => s.col === c.id).map(s =>
-      `<option value="${s.id}"${s.id === cur ? ' selected' : ''}>${s.id}${s.top ? '（柜顶上）' : `（第 ${s.n} 层）`}</option>`
+  return (cur ? '' : `<option value="" selected disabled>${esc(t('opt.pick'))}</option>`) + LAYOUT.map(c =>
+    `<optgroup label="${esc(t('opt.cab', { c: c.id }))}">` + SHELVES.filter(s => s.col === c.id).map(s =>
+      `<option value="${s.id}"${s.id === cur ? ' selected' : ''}>${esc(t(s.top ? 'opt.top' : 'opt.shelf', { id: s.id, n: s.n }))}</option>`
     ).join('') + '</optgroup>'
   ).join('');
 }
@@ -1432,11 +2317,11 @@ function renderDetails() {
   const w = whereInfo(b), mv = S.moves[b.k], color = colorOf(b.genre);
   const img = /^https?:\/\//i.test(b.img) ? (location.protocol === 'https:' ? b.img.replace(/^http:\/\//i, 'https://') : b.img) : '';
   const rows = [
-    ['作者', b.author], ['译者', b.translator], ['编者', b.editor],
-    ['系列', b.series && (b.series + (b.volume ? ` · 第 ${b.volume} 卷` : ''))],
-    ['出版社', b.publisher], ['出版年份', b.year], ['ISBN', b.isbn], ['页数', b.pages],
-    ['分类', b.genre && (GENRE_ZH[b.genre] ? `${GENRE_ZH[b.genre]}（${b.genre}）` : b.genre)],
-    ['语言', b.lang && (LANG_ZH[b.lang] || b.lang)], ['借给', b.loaned],
+    [t('d.author'), b.author], [t('d.translator'), b.translator], [t('d.editor'), b.editor],
+    [t('d.series'), b.series && (b.series + (b.volume ? ' · ' + t('vol', { n: b.volume }) : ''))],
+    [t('d.publisher'), b.publisher], [t('d.year'), b.year], [t('d.isbn'), b.isbn], [t('d.pages'), b.pages],
+    [t('d.genre'), b.genre && (() => { const n = genreName(b.genre), en = genreEnglish(b.genre); return en && en !== n ? t('d.both', { a: n, b: en }) : n; })()],
+    [t('d.lang'), b.lang && ((LANG_NAMES[LANG] || {})[b.lang] || b.lang)], [t('d.loaned'), b.loaned],
   ].filter(r => r[1]);
   dBody.innerHTML = `
     <div class="dtop">
@@ -1448,12 +2333,12 @@ function renderDetails() {
       </div>
     </div>
     ${w ? `<div class="where"><span class="loc">${esc(w.code)}</span><div><b>${esc(w.line1)}</b><div class="muted small">${esc(w.line2)}</div></div></div>`
-        : `<div class="where"><span class="loc warn">?</span><div><b>未上架</b><div class="muted small">${b.loc ? `BookBuddy 里的位置是「${esc(b.loc)}」，书架上没有这个位置` : 'BookBuddy 里没有填位置'}</div></div></div>`}
-    ${mv ? `<div class="pend">已在虚拟书架上移动：<b>${esc(locLabel(b))} → ${esc(mv.to)}</b><br>BookBuddy 里还没改。改好后重新导入 CSV，这一条会自动消掉。<br><button class="btn sm" data-act="undo">撤销移动</button></div>` : ''}
-    <div class="mv"><span>移到</span><select id="mvSel">${shelfOptions(w ? w.code : '')}</select><button class="btn sm" data-act="move">移过去</button></div>
+        : `<div class="where"><span class="loc warn">?</span><div><b>${esc(t('d.unplaced'))}</b><div class="muted small">${esc(b.loc ? t('d.badLoc', { loc: b.loc }) : t('d.noLoc'))}</div></div></div>`}
+    ${mv ? `<div class="pend">${t('d.pending', { from: esc(locLabel(b)), to: esc(mv.to) })}<br><button class="btn sm" data-act="undo">${esc(t('d.undo'))}</button></div>` : ''}
+    <div class="mv"><span>${esc(t('d.moveTo'))}</span><select id="mvSel">${shelfOptions(w ? w.code : '')}</select><button class="btn sm" data-act="move">${esc(t('d.moveBtn'))}</button></div>
     <dl class="meta">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
-    ${b.notes ? `<div class="notes"><b>备注</b><p>${esc(b.notes)}</p></div>` : ''}
-    ${b.summary ? `<details class="sum"><summary>内容简介</summary><p>${esc(b.summary)}</p></details>` : ''}`;
+    ${b.notes ? `<div class="notes"><b>${esc(t('d.notes'))}</b><p>${esc(b.notes)}</p></div>` : ''}
+    ${b.summary ? `<details class="sum"><summary>${esc(t('d.summary'))}</summary><p>${esc(b.summary)}</p></details>` : ''}`;
   const im = dBody.querySelector('img.cover');
   if (im) im.addEventListener('error', () => im.remove());
   details.hidden = false;
@@ -1469,7 +2354,7 @@ details.addEventListener('click', e => {
     const to = $('mvSel').value;
     if (!to) return;
     const cur = D.pos.get(k);
-    if (cur && cur.s === to) { toast(`已经在 ${to} 了`); return; }
+    if (cur && cur.s === to) { toast(t('toast.already', { to })); return; }
     moveBook(k, to, null);
     locate(k);
   }
@@ -1483,18 +2368,16 @@ function moveBook(k, to, index) {
   if (to === b._loc) dropMove(k);
   else setMove(k, { to, from: b.loc, at: Date.now() });
   if (index != null && S.orders[to]) {
-    const list = D.byShelf.get(to).map(x => x.k).filter(x => x !== k);
+    const list = D.seq.get(to).filter(x => x !== k);
     list.splice(clamp(index, 0, list.length), 0, k);
     setOrder(to, list);
   }
   save();
   render();
-  toast(S.moves[k]
-    ? `《${b.title}》${locLabel(b)} → ${to}，已加进待同步清单`
-    : `《${b.title}》放回了 BookBuddy 里记录的 ${to}，不用再同步`, 4000);
+  toast(S.moves[k] ? t('toast.moved', { title: b.title, from: locLabel(b), to }) : t('toast.movedBack', { title: b.title, to }), 4000);
 }
 function reorder(k, s, index) {
-  const list = D.byShelf.get(s).map(x => x.k);
+  const list = D.seq.get(s).slice();
   const from = list.indexOf(k);
   if (from < 0) return;
   list.splice(from, 1);
@@ -1504,13 +2387,27 @@ function reorder(k, s, index) {
   save();
   render();
 }
+function addGap(id) {
+  const auto = !S.orders[id];
+  setOrder(id, [...D.seq.get(id), '|gap|' + Date.now().toString(36)]);
+  save();
+  render();
+  toast(t('toast.gapAdded', { id }) + (auto ? '\n' + t('toast.gapManual') : ''), 6000);
+}
+function removeGap(g) {
+  for (const [id, list] of Object.entries(S.orders)) {
+    if (list.includes(g)) { setOrder(id, list.filter(k => k !== g)); break; }
+  }
+  save();
+  render();
+}
 function undoMove(k) {
   const b = BOOK.get(k);
   if (!b || !S.moves[k]) return;
   dropMove(k);
   save();
   render();
-  toast(`《${b.title}》回到了 ${locLabel(b)}`);
+  toast(t('toast.undo', { title: b.title, loc: locLabel(b) }));
 }
 
 /* ---------- 指针：整理模式拖书 / 鼠标拖动画布 ---------- */
@@ -1519,10 +2416,10 @@ const marker = div('marker');
 stage.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   if (pinch || drag) return;
-  const sp = e.target.closest('.spine');
-  if (editing && sp) {
-    const touch = e.pointerType !== 'mouse';
-    drag = { k: sp.dataset.k, el: sp, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, on: false, sh: null, idx: null, touch };
+  const sp = e.target.closest('.spine, .gap');
+  if (editing && sp && !e.target.closest('button')) {
+    const touch = e.pointerType !== 'mouse', gap = sp.classList.contains('gap');
+    drag = { k: gap ? sp.dataset.gap : sp.dataset.k, gap, el: sp, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, on: false, sh: null, idx: null, touch };
     // 触屏要先按住一会儿才拿起书，直接滑动就是滚动画布
     if (touch) drag.timer = setTimeout(() => { if (drag && !drag.on) { startDrag(); moveGhost(); updateTarget(); } }, HOLD_MS);
     else e.preventDefault();
@@ -1569,9 +2466,9 @@ function cancelPending() {
 }
 function startDrag() {
   drag.on = true;
-  ghost = drag.el.cloneNode(true);
+  if (drag.gap) { ghost = div('gapghost'); ghost.textContent = t('gap.label'); }
+  else { ghost = drag.el.cloneNode(true); ghost.classList.remove('sel', 'flash', 'match', 'lift'); }
   ghost.id = 'ghost';
-  ghost.classList.remove('sel', 'flash', 'match', 'lift');
   document.body.appendChild(ghost);
   drag.el.classList.add('lift');
   // 拖动时先把详情面板收起来，免得挡住下面几层
@@ -1579,6 +2476,7 @@ function startDrag() {
   drag.raf = requestAnimationFrame(autoScroll);
 }
 function moveGhost() {
+  if (drag.gap) { ghost.style.transform = `translate(${drag.x - 24}px, ${drag.y - 18}px)`; return; }
   const s = Math.max(z, 0.45), w = drag.el.offsetWidth * s, h = drag.el.offsetHeight * s;
   ghost.style.transform = `translate(${drag.x - w / 2}px, ${drag.y - h * 0.8}px) scale(${s}) rotate(4deg)`;
 }
@@ -1593,16 +2491,17 @@ function shelfNear(x, y) {
 }
 function updateTarget() {
   const hit = document.elementFromPoint(drag.x, drag.y);
-  const sh = (hit && hit.closest ? hit.closest('.shelf') : null) || (hit && caseEl.contains(hit) ? shelfNear(drag.x, drag.y) : null);
+  let sh = (hit && hit.closest ? hit.closest('.shelf') : null) || (hit && caseEl.contains(hit) ? shelfNear(drag.x, drag.y) : null);
+  if (sh && drag.gap && !(D.seq.get(sh.dataset.s) || []).includes(drag.k)) sh = null;   // 空位只能在自己那一层里挪
   if (drag.sh && drag.sh !== sh) drag.sh.classList.remove('drop');
   drag.sh = sh;
   drag.idx = null;
   if (!sh) { marker.remove(); return; }
   sh.classList.add('drop');
   const id = sh.dataset.s, cur = D.pos.get(drag.k);
-  const spines = [...sh.querySelectorAll('.spine')].filter(s => s !== drag.el);
+  const spines = [...sh.querySelectorAll('.spine, .gap')].filter(s => s !== drag.el);
   let idx = 0;
-  if ((cur && cur.s === id) || S.orders[id]) {
+  if (drag.gap || (cur && cur.s === id) || S.orders[id]) {
     // 同一层里调顺序，或者放进手动排过序的层：放在手指 / 鼠标指着的位置
     for (const s of spines) {
       const r = s.getBoundingClientRect();
@@ -1651,7 +2550,7 @@ function endDrag(commit) {
   if (ghost) { ghost.remove(); ghost = null; }
   marker.remove();
   if (d.sh) d.sh.classList.remove('drop');
-  const to = d.sh && d.sh.dataset.s, cur = D.pos.get(d.k);
+  const to = d.sh && d.sh.dataset.s, cur = d.gap ? { s: to } : D.pos.get(d.k);
   if (commit && to && cur && cur.s === to) reorder(d.k, to, d.idx);
   else if (commit && to) moveBook(d.k, to, d.idx);
   renderDetails();
@@ -1661,12 +2560,17 @@ stage.addEventListener('click', e => {
   if (performance.now() < suppressUntil) return;
   const r = e.target.closest('[data-reset]');
   if (r) {
+    const hadGap = (S.orders[r.dataset.reset] || []).some(isGap);
     resetOrder(r.dataset.reset);
     save();
     render();
-    toast(`${r.dataset.reset} 已恢复自动排序`);
+    toast(t('toast.reset', { id: r.dataset.reset }) + (hadGap ? t('toast.resetGap') : ''));
     return;
   }
+  const ag = e.target.closest('[data-addgap]');
+  if (ag) { addGap(ag.dataset.addgap); return; }
+  const dg = e.target.closest('[data-delgap]');
+  if (dg) { removeGap(dg.dataset.delgap); return; }
   const sp = e.target.closest('.spine');
   if (sp) select(sp.dataset.k === selectedK ? null : sp.dataset.k, true);
   else if (selectedK) select(null);
@@ -1675,12 +2579,11 @@ function setEditing(on) {
   editing = on;
   document.body.classList.toggle('editing', on);
   $('btnEdit').classList.toggle('on', on);
-  $('editText').textContent = COARSE ? '整理模式：按住书脊一下再拖动' : '整理模式：拖动书脊换位置';
+  $('editText').textContent = t(COARSE ? 'edit.textTouch' : 'edit.text');
   if (on && !L.editTipShown) {
     L.editTipShown = true;
     saveLocal();
-    toast((COARSE ? '先按住书脊一下，等它拿起来再拖；直接滑动是滚动画布。\n' : '') +
-      '同一层里拖动只改顺序（记在这台设备上）；拖到别的层会加进「待同步」清单，之后到 BookBuddy 里照着改。', 8000);
+    toast((COARSE ? t('edit.tipTouch') + '\n' : '') + t('edit.tip'), 8000);
   }
 }
 $('btnEdit').onclick = () => setEditing(!editing);
@@ -1695,13 +2598,13 @@ function renderSync() {
   $('syncCopy').disabled = !items.length;
   $('syncBackup').hidden = !items.length || (L.sync && !L.sync.err) || items.every(x => x.m.at < L.backupAt);
   $('syncList').innerHTML = items.length
-    ? '<li class="colhd">BookBuddy 里现在是 → 要改成</li>' + items.map(({ k, m, b }) =>
+    ? `<li class="colhd">${esc(t('sync.colhd'))}</li>` + items.map(({ k, m, b }) =>
       `<li data-k="${esc(k)}"><div class="tx"><div class="tt">${esc(b.title)}${b._x ? ` <small class="muted">${esc(b._x)}</small>` : ''}</div><div class="au">${esc(b.author)}</div>` +
-      (b.loc && !SHELF.has(b._loc) ? `<div class="bad">BookBuddy 里的「${esc(b.loc)}」书架上没有</div>` : '') + '</div>' +
-      `<div class="chg"><span class="loc">${esc(b.loc || '空')}</span>→<span class="loc acc">${esc(m.to)}</span></div>` +
-      '<div class="acts"><button class="btn sm" data-act="find">查看</button><button class="btn sm" data-act="undo">撤销</button></div></li>'
+      (b.loc && !SHELF.has(b._loc) ? `<div class="bad">${esc(t('sync.bad', { loc: b.loc }))}</div>` : '') + '</div>' +
+      `<div class="chg"><span class="loc">${esc(b.loc || t('tray.empty'))}</span>→<span class="loc acc">${esc(m.to)}</span></div>` +
+      `<div class="acts"><button class="btn sm" data-act="find">${esc(t('sync.find'))}</button><button class="btn sm" data-act="undo">${esc(t('sync.undo'))}</button></div></li>`
     ).join('')
-    : '<li class="none">没有待同步的修改 ✓</li>';
+    : `<li class="none">${esc(t('sync.none'))}</li>`;
 }
 $('btnSync').onclick = () => { renderSync(); dlgSync.showModal(); };
 $('syncList').addEventListener('click', e => {
@@ -1712,12 +2615,13 @@ $('syncList').addEventListener('click', e => {
 });
 $('syncCopy').onclick = async () => {
   const items = syncItems();
-  const text = `在 BookBuddy 里修改这些书的 Physical Location（共 ${items.length} 本）：\n` +
-    items.map(({ m, b }, i) => `${i + 1}. 《${b.title}${b._x ? ' ' + b._x : ''}》${b.author ? '（' + b.author + '）' : ''}：${b.loc || '空'} → ${m.to}`).join('\n');
-  toast(await copyText(text) ? '清单已复制' : '复制失败，请手动抄一下');
+  const text = t('copy.header', { n: items.length }) + '\n' + items.map(({ m, b }, i) => t('copy.item', {
+    i: i + 1, title: b.title + (b._x ? ' ' + b._x : ''), author: b.author ? t('copy.author', { a: b.author }) : '', from: b.loc || t('tray.empty'), to: m.to,
+  })).join('\n');
+  toast(await copyText(text) ? t('copy.ok') : t('copy.fail'));
 };
 $('syncImport').onclick = () => { dlgSync.close(); pickFile(); };
-$('syncBackupBtn').onclick = backup;
+$('syncBackup').addEventListener('click', e => { if (e.target.closest('#syncBackupBtn')) backup(); });
 async function copyText(t) {
   if (navigator.clipboard && window.isSecureContext) {
     try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* 退回到旧办法 */ }
@@ -1741,30 +2645,42 @@ async function copyText(t) {
 function openMenu() {
   const m = S.meta;
   $('mMeta').textContent = m
-    ? `上次导入：${new Date(m.at).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' })}${m.name ? ' · ' + m.name : ''} · ${m.n} 本`
-    : '还没有导入过书目。';
+    ? t('menu.meta', { time: new Date(m.at).toLocaleString(LOCALE[LANG], { dateStyle: 'medium', timeStyle: 'short' }), name: m.name ? ' · ' + m.name : '', n: m.n })
+    : t('menu.metaNone');
+  $('mLang').value = LANG;
+  $('mGenreEn').checked = !!S.settings.genreEn;
+  $('mGenreEn').closest('.field').hidden = LANG === 'en';
   $('mSort').value = S.settings.sort;
   $('mResetOrders').disabled = !Object.keys(S.orders).length;
   renderSyncStatus();
-  dlgMenu.showModal();
+  if (!dlgMenu.open) dlgMenu.showModal();
 }
 $('btnMenu').onclick = openMenu;
 $('mSort').onchange = e => { S.settings.sort = e.target.value; S.settings.sortAt = Date.now(); save(); render(); };
+$('mLang').onchange = e => {
+  S.settings.lang = e.target.value;
+  S.settings.langAt = Date.now();
+  try { localStorage.setItem(LANG_KEY, S.settings.lang); } catch (err) { /* 存不下就算了 */ }
+  save();
+  render();
+};
+$('mGenreEn').onchange = e => { S.settings.genreEn = e.target.checked; S.settings.genreEnAt = Date.now(); save(); render(); };
 $('mResetOrders').onclick = () => {
-  if (!confirm('清除所有层的手动排序，全部改回自动排序？')) return;
+  if (!confirm(t('resetAll.confirm'))) return;
   for (const id of Object.keys(S.orders)) resetOrder(id);
   save();
   render();
   $('mResetOrders').disabled = true;
-  toast('已清除所有手动排序');
+  toast(t('resetAll.done'));
 };
 $('mBackup').onclick = backup;
 $('mClear').onclick = () => {
-  if (!confirm(L.sync ? '清空这台设备上的数据，并在这台设备上停止同步？云端和 BookBuddy 里的数据不受影响。'
-    : '清空这台设备上的书目、手动排序和待同步清单？BookBuddy 里的数据不受影响。')) return;
+  if (!confirm(t(L.sync ? 'clear.confirmSync' : 'clear.confirm'))) return;
   L.sync = null;
   saveLocal();
+  const keep = S.settings;
   S = blank();
+  Object.assign(S.settings, { lang: keep.lang, langAt: keep.langAt, genreEn: keep.genreEn, genreEnAt: keep.genreEnAt });
   selectedK = null;
   rebuildIndex();
   save();
@@ -1838,20 +2754,34 @@ function mergeStates(a, b) {
   const st = b.settings.sortAt > a.settings.sortAt ? b : a;
   out.settings.sort = st.settings.sort;
   out.settings.sortAt = st.settings.sortAt;
+  const la = b.settings.langAt > a.settings.langAt ? b : a, ge = b.settings.genreEnAt > a.settings.genreEnAt ? b : a;
+  out.settings.lang = la.settings.lang;
+  out.settings.langAt = la.settings.langAt;
+  out.settings.genreEn = ge.settings.genreEn;
+  out.settings.genreEnAt = ge.settings.genreEnAt;
   const keep = Date.now() - 180 * 864e5;   // 半年前的删除记录不用再留着
   for (const k of new Set([a, b].flatMap(x => [...Object.keys(x.moves), ...Object.keys(x.gone)]))) {
-    let best = null, t = -1;
+    let best = null, ts = -1;
     for (const x of [a, b]) {
-      if (x.moves[k] && x.moves[k].at > t) { best = x.moves[k]; t = best.at; }
-      if (x.gone[k] >= t) { best = null; t = x.gone[k]; }
+      if (x.moves[k] && x.moves[k].at > ts) { best = x.moves[k]; ts = best.at; }
+      if (x.gone[k] >= ts) { best = null; ts = x.gone[k]; }
     }
     if (best) out.moves[k] = best;
-    else if (t > keep) out.gone[k] = t;
+    else if (ts > keep) out.gone[k] = ts;
   }
   for (const id of new Set([a, b].flatMap(x => [...Object.keys(x.orders), ...Object.keys(x.orderAt)]))) {
-    const x = (b.orderAt[id] || 0) > (a.orderAt[id] || 0) ? b : a;
+    const ta = a.orderAt[id] || 0, tb = b.orderAt[id] || 0;
+    let x = tb > ta ? b : a, ts = Math.max(ta, tb);
+    const ca = canon(a.orders[id] || null), cb = canon(b.orders[id] || null);
+    if (ta === tb && ca !== cb) {
+      // 时间一样内容却不同（旧版本导入时删掉了空位但没记时间）：每台设备都按同样的规则选，
+      // 先选有排序的，再选空位多的，最后按内容比较；时间加 1，旧版本也会接受这一份
+      const gaps = y => (y.orders[id] || []).filter(isGap).length;
+      x = !a.orders[id] !== !b.orders[id] ? (b.orders[id] ? b : a) : gaps(a) !== gaps(b) ? (gaps(b) > gaps(a) ? b : a) : (cb > ca ? b : a);
+      ts += 1;
+    }
     if (x.orders[id]) out.orders[id] = x.orders[id];
-    if (x.orderAt[id]) out.orderAt[id] = x.orderAt[id];
+    if (ts) out.orderAt[id] = ts;
   }
   return out;
 }
@@ -1892,11 +2822,19 @@ async function gh(method, path, { body, etag, accept, cfg = L.sync } = {}) {
   }
 }
 const filePath = c => `/repos/${c.repo}/contents/${SYNC_FILE}`;
-function ghError(r) {
-  if (r.status === 401) return '令牌无效或者已经过期，请在设置里重新设置同步';
-  if (r.status === 403 || r.status === 404) return '令牌没有这个仓库的读写权限（Contents 要设成 Read and write）';
-  return `GitHub 返回了错误 ${r.status}，稍后会再试`;
+function syncError(k, v) {
+  const e = new Error(t(k, v));
+  e.k = k;
+  e.v = v || {};
+  return e;
 }
+function ghError(r) {
+  if (r.status === 401) return syncError('gh.401');
+  if (r.status === 403 || r.status === 404) return syncError('gh.403');
+  return syncError('gh.other', { s: r.status });
+}
+// c.err 是 '' 或者 { k, v }（错误代码）/ { text }（其它错误）
+const errText = e => (!e ? '' : typeof e === 'string' ? e : e.k ? t(e.k, e.v) : e.text);
 
 let syncChain = Promise.resolve(), syncBusy = false, syncDeferred = false, lastSyncTry = 0, pushTimer = 0;
 // 拉取云端：有变化就和本机合并
@@ -1908,19 +2846,19 @@ async function pullOnce(c) {
     if (S.books.length || Object.keys(S.moves).length) c.dirty = true;
     return;
   }
-  if (!r.ok) throw new Error(ghError(r));
+  if (!r.ok) throw ghError(r);
   const j = await r.json();
   c.etag = r.headers.get('ETag');
   if (j.sha === c.sha) return;
   let text = j.encoding === 'base64' && j.content ? fromB64(j.content) : null;
   if (text == null) {                           // 超过 1MB 的文件要单独取原文
     const raw = await gh('GET', filePath(c), { accept: 'application/vnd.github.raw+json', cfg: c });
-    if (!raw.ok) throw new Error(ghError(raw));
+    if (!raw.ok) throw ghError(raw);
     text = await raw.text();
   }
   let d = null;
   try { d = JSON.parse(text); } catch (e) { d = null; }
-  if (!d || d.app !== 'vshelf' || !d.state) throw new Error(`云端的 ${SYNC_FILE} 不是虚拟书架的数据，没有动它`);
+  if (!d || d.app !== 'vshelf' || !d.state) throw syncError('gh.badFile', { file: SYNC_FILE });
   const remote = normalizeState(d.state), merged = mergeStates(S, remote), cm = canon(merged);
   c.sha = j.sha;
   c.dirty = cm !== canon(remote);
@@ -1942,12 +2880,12 @@ async function pushOnce(c) {
       c.dirty = false;
       return;
     }
-    if (r.status !== 409 && r.status !== 422) throw new Error(ghError(r));
+    if (r.status !== 409 && r.status !== 422) throw ghError(r);
     c.etag = null;
     await pullOnce(c);
     if (!c.dirty) return;
   }
-  throw new Error('和云端的数据合并了几次都没成功，稍后会再试');
+  throw syncError('gh.mergeFail');
 }
 function applyState(next, from) {
   const wasEmpty = !S.books.length;
@@ -1957,8 +2895,11 @@ function applyState(next, from) {
   if (selectedK && !BOOK.has(selectedK)) selectedK = null;
   persist();
   render();
-  if (wasEmpty) { fit(); requestPersist(); toast(`已从云端同步：${S.books.length} 本书，${Object.keys(S.moves).length} 项待同步`, 5000); }
-  else toast(`已同步${from ? `「${from}」` : '其它设备'}上的修改`);
+  if (wasEmpty) { fit(); requestPersist(); toast(t('sync.fromCloud', { n: S.books.length, m: Object.keys(S.moves).length }), 5000); }
+  else {
+    const name = from === 'Browser' || from === '电脑' ? t('device.browser') : from;
+    toast(name ? t('sync.fromDevice', { d: name }) : t('sync.fromOther'));
+  }
 }
 async function doSync() {
   const c = L.sync;
@@ -1973,13 +2914,15 @@ async function doSync() {
     if (L.sync === c && c.dirty) await pushOnce(c);
     c.at = Date.now();
     c.offline = false;
+    c.err = '';
   } catch (e) {
     const offline = !!e && e.name === 'NetworkError';
-    err = offline ? '' : str((e && e.message) || e);
+    const info = offline ? '' : e && e.k ? { k: e.k, v: e.v } : { text: str((e && e.message) || e) };
+    err = errText(info);
     c.offline = offline;
-    if (err && err !== c.err) toast('⚠️ 同步失败：' + err, 8000);
+    if (err && canon(info) !== canon(c.err || '')) toast(t('sync.failToast', { err }), 8000);
+    c.err = info;
   }
-  c.err = err;
   syncBusy = false;
   if (L.sync === c) saveLocal();
   renderSyncStatus();
@@ -1995,27 +2938,29 @@ function schedulePush(ms = PUSH_DELAY) {
   clearTimeout(pushTimer);
   pushTimer = setTimeout(syncNow, ms);
 }
-const ago = t => {
-  const s = (Date.now() - t) / 1000;
-  return s < 60 ? '刚刚' : s < 3600 ? `${Math.floor(s / 60)} 分钟前` : s < 86400 ? `${Math.floor(s / 3600)} 小时前` : new Date(t).toLocaleDateString('zh-CN');
+const ago = at => {
+  const s = (Date.now() - at) / 1000;
+  return s < 60 ? t('ago.now') : s < 3600 ? t('ago.min', { n: Math.floor(s / 60) })
+    : s < 86400 ? t('ago.hour', { n: Math.floor(s / 3600) }) : new Date(at).toLocaleDateString(LOCALE[LANG]);
 };
 function renderSyncStatus() {
   const c = L.sync;
   $('mSyncOff').hidden = !!c;
   $('mSyncOn').hidden = !c;
   $('btnMenu').classList.toggle('warn', !!(c && c.err));
-  $('mSyncStatus').textContent = !c ? '没有开启。开启后，书目、层内排序和待同步清单会在你的 Mac、iPhone、iPad 之间自动同步。'
-    : `已连接 ${c.repo} · ` + (syncBusy ? '正在同步…' : c.err ? '⚠️ ' + c.err
-      : c.offline ? (c.dirty ? '没有网络，有修改还没上传，联网后会自动同步' : '没有网络，联网后会自动同步')
-      : c.dirty ? '有修改等着上传…' : c.at ? `${ago(c.at)}同步过` : '还没同步过');
+  $('mSyncStatus').textContent = !c ? t('status.off') : t('status.on', {
+    repo: c.repo,
+    state: syncBusy ? t('status.busy') : c.err ? '⚠️ ' + errText(c.err) : c.offline ? t(c.dirty ? 'status.offlineDirty' : 'status.offline')
+      : c.dirty ? t('status.dirty') : c.at ? t('status.at', { ago: ago(c.at) }) : t('status.never'),
+  });
 }
 async function connectSync(repo, token) {
   let r;
-  try { r = await gh('GET', `/repos/${repo}`, { cfg: { token } }); } catch (e) { throw new Error('连不上 GitHub，检查一下网络'); }
-  if (r.status === 401) throw new Error('令牌无效或者已经过期');
-  if (!r.ok) throw new Error('找不到这个仓库，或者令牌没有访问它的权限');
+  try { r = await gh('GET', `/repos/${repo}`, { cfg: { token } }); } catch (e) { throw new Error(t('conn.net')); }
+  if (r.status === 401) throw new Error(t('conn.401'));
+  if (!r.ok) throw new Error(t('conn.404'));
   const info = await r.json();
-  if (!info.private) throw new Error('这个仓库是公开的，书目会被所有人看到。请换成私有（Private）仓库。');
+  if (!info.private) throw new Error(t('conn.public'));
   L.sync = { repo: info.full_name || repo, token, sha: null, etag: null, dirty: false, at: 0, err: '', offline: false };
   saveLocal();
   const err = await syncNow();
@@ -2023,9 +2968,9 @@ async function connectSync(repo, token) {
     L.sync = null;
     saveLocal();
     renderSyncStatus();
-    throw new Error(err || '连不上 GitHub，检查一下网络');
+    throw new Error(err || t('conn.net'));
   }
-  toast(`同步已开启：${S.books.length} 本书，${Object.keys(S.moves).length} 项待同步。\n在其它设备上点「⋯ → 设置同步」，粘贴这台设备的同步码就行。`, 7000);
+  toast(t('conn.ok', { n: S.books.length, m: Object.keys(S.moves).length }), 7000);
 }
 const syncCode = () => `vshelf-sync:${L.sync.repo}:${L.sync.token}`;
 function parseSyncCode(t) {
@@ -2049,11 +2994,11 @@ $('cConnect').onclick = async () => {
   const fail = msg => { errEl.textContent = msg; errEl.hidden = false; };
   const repo = $('cRepo').value.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
   const token = $('cToken').value.trim();
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return fail('仓库要写成「用户名/仓库名」，比如 yourname/bookshelf-data');
-  if (!token) return fail('请填写访问令牌');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return fail(t('conn.badRepo'));
+  if (!token) return fail(t('conn.noToken'));
   errEl.hidden = true;
   btn.disabled = true;
-  btn.textContent = '正在连接…';
+  btn.textContent = t('conn.busy');
   try {
     await connectSync(repo, token);
     dlgCloud.close();
@@ -2061,28 +3006,26 @@ $('cConnect').onclick = async () => {
     fail(str(e && e.message));
   } finally {
     btn.disabled = false;
-    btn.textContent = '连接';
+    btn.textContent = t('connect');
   }
 };
 $('mSyncSetup').onclick = () => { dlgMenu.close(); openCloud(); };
 $('emptyCloud').onclick = openCloud;
 $('mSyncNow').onclick = async () => {
   const err = await syncNow();
-  if (!err) toast(L.sync && L.sync.offline ? '没有网络，联网后会自动同步' : '已同步');
+  if (!err) toast(L.sync && L.sync.offline ? t('status.offline') : t('syncNow.ok'));
 };
 $('mSyncCode').onclick = async () => {
-  toast(await copyText(syncCode())
-    ? '同步码已复制。在另一台设备上打开虚拟书架，点「⋯ → 设置同步」粘贴进去（同一个 Apple ID 的设备可以直接粘贴）。\n同步码里包含令牌，不要发给别人。'
-    : '复制失败', 8000);
+  toast(await copyText(syncCode()) ? t('code.copied') : t('code.fail'), 8000);
 };
 $('mSyncStop').onclick = () => {
-  if (!confirm('在这台设备上停止同步？这台设备上的数据会保留，云端的数据也不会删除。')) return;
+  if (!confirm(t('stop.confirm'))) return;
   clearTimeout(pushTimer);
   L.sync = null;
   saveLocal();
   renderSyncStatus();
   renderHint();
-  toast('这台设备已停止同步');
+  toast(t('stop.done'));
 };
 // 回到这个页面、联网、或者每隔一分钟，看看别的设备有没有改过
 const syncSoon = () => { if (L.sync && Date.now() - lastSyncTry > 5000) syncNow(); };
@@ -2095,6 +3038,9 @@ window.addEventListener('online', () => { if (L.sync) syncNow(); });
 setInterval(() => { if (document.visibilityState === 'visible') syncSoon(); }, 60000);
 
 /* ---------- 启动 ---------- */
+LANG = S.settings.lang || savedLang() || 'zh-Hans';
+applyStatic();
+setEditing(false);
 rebuildIndex();
 ensureColors();
 render();

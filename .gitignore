@@ -1,4 +1,6 @@
 # 书目数据只留在本机，不要提交到仓库
 *.csv
 虚拟书架备份*.json
+虛擬書架備份*.json
+Virtual-Bookshelf-backup*.json
 .DS_Store

@@ -307,3 +307,51 @@ test('conflicting adjacent divider changes synchronize as one valid cabinet layo
   assert.equal(run('canon(mergeStates(a,b))===canon(mergeStates(b,a))'),true);
   assert.equal(run('cabinetLevels("A",merged.settings).find(s=>s.id==="A7").y'),6);
 });
+
+test('same CSV import recovers tags stripped by an older device, in either merge direction', () => {
+  const { run } = core();
+  run(`var old=normalizeState({books:[{k:'one',title:'One',loc:'A1'}],meta:{at:100}});var fresh=normalizeState({books:[{k:'one',title:'One',loc:'A1',tags:'古典文學'}],meta:{at:100}});`);
+  assert.equal(run('mergeStates(old,fresh).books[0].tags'),'古典文學');
+  assert.equal(run('mergeStates(fresh,old).books[0].tags'),'古典文學');
+  assert.equal(run('canon(mergeStates(old,fresh))===canon(mergeStates(fresh,old))'),true);
+  assert.equal(run('old.books[0].tags'),'');
+});
+
+test('newer CSV removal of a tag is not undone by an older tagged copy', () => {
+  const { run } = core();
+  run(`var fresh=normalizeState({books:[{k:'one',title:'One',loc:'A1',tags:''}],meta:{at:200}});var old=normalizeState({books:[{k:'one',title:'One',loc:'A1',tags:'古典文學'}],meta:{at:100}});`);
+  assert.equal(run('mergeStates(old,fresh).books[0].tags'),'');
+  assert.equal(run('mergeStates(fresh,old).books[0].tags'),'');
+});
+
+test('upgrade drops old cached SHA and ETag so cloud fields can be downloaded again', () => {
+  const { context, run } = core();
+  const stored={sync:{repo:'owner/test',token:'test-only',sha:'old-sha',etag:'old-etag',dirty:true}};
+  context.localStorage={getItem:()=>JSON.stringify(stored)};
+  run(section('function loadLocal()', 'function saveLocal()'));
+  assert.equal(run('loadLocal().sync.sha'),null);
+  assert.equal(run('loadLocal().sync.etag'),null);
+  assert.equal(run('loadLocal().sync.dirty'),true);
+  assert.equal(run('loadLocal().sync.cacheVersion'),run('SYNC_CACHE_VERSION'));
+  stored.sync.cacheVersion=run('SYNC_CACHE_VERSION');
+  assert.equal(run('loadLocal().sync.sha'),'old-sha');
+  assert.equal(run('loadLocal().sync.etag'),'old-etag');
+});
+
+test('upgraded client downloads identical cloud SHA and applies missing tags from the same CSV', async () => {
+  const { context, run } = core();
+  const stored={sync:{repo:'owner/test',token:'test-only',sha:'same-sha',etag:'old-etag'}};
+  context.localStorage={getItem:()=>JSON.stringify(stored)};
+  context.filePath=()=>'/fake';context.syncError=()=>new Error('fake');context.ghError=()=>new Error('fake');
+  let applied=false,conditional;
+  context.applyState=next=>{context.recovered=next;applied=true;};
+  const remote={app:'vshelf',state:{books:[{k:'one',title:'One',loc:'A1',tags:'古典文學'}],meta:{at:100}}};
+  context.gh=async(method,url,options)=>{conditional=options.etag;return {status:200,ok:true,headers:{get:()=>null},json:async()=>({sha:'same-sha',encoding:'base64',content:Buffer.from(JSON.stringify(remote)).toString('base64')})};};
+  run(`${section('function loadLocal()', 'function saveLocal()')} ${section('async function pullOnce(', '// 上传本机数据；')} var S=normalizeState({books:[{k:'one',title:'One',loc:'A1'}],meta:{at:100}});var c=loadLocal().sync;`);
+  await run('pullOnce(c)');
+  assert.equal(conditional,null);
+  assert.equal(applied,true);
+  assert.equal(context.recovered.books[0].tags,'古典文學');
+  assert.equal(run('c.sha'),'same-sha');
+  assert.equal(run('c.dirty'),false);
+});

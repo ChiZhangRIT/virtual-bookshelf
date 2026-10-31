@@ -541,6 +541,7 @@ const LANG_KEY = 'vshelf.lang';          // 本机最后选的界面语言，单
 const GH_API = 'https://api.github.com';
 const SYNC_FILE = 'bookshelf.json';
 const PUSH_DELAY = 2500;                 // 改完之后等多久再上传（连续拖好几本书时只传一次）
+const SYNC_CACHE_VERSION = 1;            // 升级解析器后重新读取云端，补回旧版在本机丢弃的字段
 const DERIVED = new Set(['_w', '_h', '_s', '_loc', '_x']);
 const BOOK_FIELDS = ['k', 'title', 'subtitle', 'series', 'volume', 'author', 'authorSort', 'translator', 'editor', 'publisher',
   'year', 'genre', 'tags', 'pages', 'lang', 'isbn', 'loc', 'added', 'img', 'notes', 'summary', 'loaned'];
@@ -1523,10 +1524,12 @@ function loadLocal() {
     l = { editTipShown: old.editTipShown, hintAt: old.hintAt, backupAt: old.backupAt };
   }
   const c = l.sync && typeof l.sync === 'object' ? l.sync : null;
+  const cacheCurrent = c && c.cacheVersion === SYNC_CACHE_VERSION;
   return {
     editTipShown: l.editTipShown === true, hintAt: Number(l.hintAt) || 0, backupAt: Number(l.backupAt) || 0,
     sync: c && /^[\w.-]+\/[\w.-]+$/.test(c.repo) && c.token && typeof c.token === 'string' ? {
-      repo: c.repo, token: c.token, sha: c.sha ? str(c.sha) : null, etag: c.etag ? str(c.etag) : null,
+      repo: c.repo, token: c.token, cacheVersion: SYNC_CACHE_VERSION,
+      sha: cacheCurrent && c.sha ? str(c.sha) : null, etag: cacheCurrent && c.etag ? str(c.etag) : null,
       dirty: c.dirty === true, at: Number(c.at) || 0, offline: c.offline === true,
       err: c.err && typeof c.err === 'object' ? (c.err.k ? { k: str(c.err.k), v: c.err.v && typeof c.err.v === 'object' ? c.err.v : {} } : { text: str(c.err.text) }) : str(c.err),
     } : null,
@@ -2999,6 +3002,12 @@ function mergeStates(a, b) {
   const src = at(b) > at(a) ? b : a, other = src === a ? b : a;
   out.books = src.books;
   out.meta = src.meta;
+  // 同一次 CSV 导入的书目可能经过旧版设备，Tags 会被旧解析器丢掉。
+  // 只在导入时间相同时补缺失字段；真正重新导入后删除的标签仍以新 CSV 为准。
+  if (at(src) > 0 && at(src) === at(other)) {
+    const tags = new Map(other.books.map(book => [book.k, book.tags]));
+    out.books = src.books.map(book => !book.tags && tags.get(book.k) ? { ...book, tags: tags.get(book.k) } : book);
+  }
   out.settings.colors = Object.assign({}, other.settings.colors, src.settings.colors);
   const st = b.settings.sortAt > a.settings.sortAt ? b : a;
   out.settings.sort = st.settings.sort;
@@ -3234,7 +3243,7 @@ async function connectSync(repo, token) {
   if (!r.ok) throw new Error(t('conn.404'));
   const info = await r.json();
   if (!info.private) throw new Error(t('conn.public'));
-  L.sync = { repo: info.full_name || repo, token, sha: null, etag: null, dirty: false, at: 0, err: '', offline: false };
+  L.sync = { repo: info.full_name || repo, token, cacheVersion: SYNC_CACHE_VERSION, sha: null, etag: null, dirty: false, at: 0, err: '', offline: false };
   saveLocal();
   const err = await syncNow();
   if (err || (L.sync && L.sync.offline)) {

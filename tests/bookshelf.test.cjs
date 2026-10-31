@@ -355,3 +355,36 @@ test('upgraded client downloads identical cloud SHA and applies missing tags fro
   assert.equal(run('c.sha'),'same-sha');
   assert.equal(run('c.dirty'),false);
 });
+
+test('size changes that do not change anything keep their timestamps (no extra sync commit)', () => {
+  const { run } = catalog();
+  assert.equal(run(`setShelfSize('A2','width',100)`), false);
+  assert.equal(run('S.settings.widthAt.A'), undefined);
+  assert.equal(run(`setShelfSize('A2','width',130)`), true);
+  const at = run('S.settings.widthAt.A');
+  assert.equal(run(`setShelfSize('A2','width',130)`), false);
+  assert.equal(run('S.settings.widthAt.A'), at);
+  assert.equal(run(`setShelfSize('A2','height',100)`), false);
+  assert.equal(run('S.settings.boardAt.A'), undefined);
+  run(`setShelfSize('A2','width',100); var stamps = canon([S.settings.widthAt, S.settings.boardAt]); resetSizes();`);
+  assert.equal(run('canon([S.settings.widthAt, S.settings.boardAt])'), run('stamps'), 'reset with all sizes at default should not touch timestamps');
+});
+
+test('restoring a backup that only has some cabinet sizes writes defaults for the rest, so other devices cannot overwrite them', () => {
+  const { context, run } = catalog();
+  run(`setShelfSize('B1','width',150); setShelfSize('C2','height',150); var older = normalizeState(S); older.settings.widthAt.B -= 60000; older.settings.boardAt.C -= 60000;`);
+  context.backupText = JSON.stringify({ app: 'vshelf', state: { books: [], settings: { widths: { A: 80 }, boards: { A: {} } } } });
+  run('restore(backupText); var restored = normalizeState(S); var merged = mergeStates(restored, older), merged2 = mergeStates(older, restored);');
+  for (const m of ['merged', 'merged2']) {
+    assert.equal(run(`${m}.settings.widths.A`), 80, m);
+    assert.equal(run(`${m}.settings.widths.B || 100`), 100, m);
+    assert.equal(run(`canon(${m}.settings.boards.C)`), run(`canon(boardPositions('C', blank().settings))`), m);
+    assert.equal(run(`canon(normalizeState(${m}))`), run(`canon(${m})`), `${m} should be stable after normalizeState`);
+  }
+});
+
+test('multiple tags in the details are separated in every language', () => {
+  const { run } = core();
+  for (const lang of ['zh-Hans', 'zh-Hant', 'en']) assert.ok(run(`MSG['${lang}']['d.tagSep']`).trim() !== '' || run(`MSG['${lang}']['d.tagSep']`) === ', ', lang);
+  assert.equal(run(`MSG['zh-Hans']['d.tagSep']`), '、');
+});

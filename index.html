@@ -150,9 +150,12 @@ body.panning #stage { cursor: grabbing; }
   box-shadow: 0 6px 16px rgba(40, 25, 10, .25), inset 0 2px 0 var(--wood-hi);
 }
 .shelf { position: absolute; }
-.size-handle { display: none; position: absolute; z-index: 4; padding: 0; border: 0; color: #5b3b13; background: rgba(255, 190, 60, .3); touch-action: none; }
+.size-handle { display: none; position: absolute; z-index: 4; padding: 0; border: 0; color: #5b3b13; background: rgba(255, 190, 60, .3); touch-action: pan-x pan-y; }
 body.editing .size-handle { display: block; }
-.size-handle::before { content: ''; position: absolute; inset: -5px; }
+body.dragging .size-handle { pointer-events: none; }     /* 拖书时让落点判断看到下面的隔板和书 */
+.size-handle::before { content: ''; position: absolute; }
+.size-side::before { inset: 0 -6px 0 0; }                  /* 只往书柜外侧扩一点 */
+.size-top::before { inset: 0 0 -6px 0; }                   /* 只往下面那层顶上的空白扩一点，不伸进书脊 */
 .size-handle:focus-visible { outline: 2px solid var(--hl); outline-offset: 2px; }
 .size-side { right: -12px; top: 0; bottom: 0; width: 12px; cursor: ew-resize; }
 .size-top { left: 0; top: -18px; width: 100%; height: 18px; cursor: ns-resize; }
@@ -264,6 +267,8 @@ body.editing .spine { cursor: grab; }
 body.editing #editBar { display: flex; }
 #editBar span { overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 480px) { #editBar { white-space: normal; border-radius: 16px; } #editBar span { text-overflow: clip; } }
+#editBar #editResetSize { background: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5); color: inherit; margin-right: 4px; }
+#editBar #editResetSize:disabled { opacity: .4; }
 #editBar button { flex: none; border: 0; border-radius: 14px; height: 28px; padding: 0 14px; background: var(--accent); color: #fff; }
 #empty { position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: none; }
 #empty .card {
@@ -572,6 +577,9 @@ const LOCALE = { 'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW', en: 'en-US' };
 const MSG = {
   'zh-Hans': {
     "size.resetDone": "已恢复所有书架的默认宽度和层高",
+    "size.resetConfirm": "把 A、B、C 三个书柜的宽度和层高都恢复成默认值？书的位置和顺序不受影响。",
+    "size.resetConfirmSync": "把 A、B、C 三个书柜的宽度和层高都恢复成默认值？开着同步，其他设备上的也会一起恢复。书的位置和顺序不受影响。",
+    "d.tagSep": "、",
     "size.reset": "恢复尺寸",
     "size.previewHeight": "{id} 层高 {n}%",
     "size.previewWidth": "{id} 宽度 {n}%",
@@ -732,8 +740,8 @@ const MSG = {
     "toast.reset": "{id} 已恢复自动排序",
     "toast.resetGap": "，空位也去掉了",
     "edit.text": "拖书整理；侧板调整柜宽，隔板在柜内移动",
-    "edit.textTouch": "长按拖书；侧板调整柜宽，隔板在柜内移动",
-    "edit.tipTouch": "先按住书脊一下，等它拿起来再拖；直接滑动是滚动画布。",
+    "edit.textTouch": "长按拖动书或板件：侧板调柜宽，隔板在柜内移动",
+    "edit.tipTouch": "先按住书脊或板件一下，等它拿起来再拖；直接滑动是滚动画布。",
     "edit.tip": "同一层里拖动只改顺序（记在这台设备上）；拖到别的层会加进「待同步」清单，之后到 BookBuddy 里照着改。",
     "sync.colhd": "BookBuddy 里现在是 → 要改成",
     "sync.bad": "BookBuddy 里的「{loc}」书架上没有",
@@ -787,6 +795,9 @@ const MSG = {
   },
   'zh-Hant': {
     "size.resetDone": "已恢復所有書架的預設寬度和層高",
+    "size.resetConfirm": "要把 A、B、C 三個書櫃的寬度和層高都恢復成預設值嗎？書的位置和順序不受影響。",
+    "size.resetConfirmSync": "要把 A、B、C 三個書櫃的寬度和層高都恢復成預設值嗎？已開啟同步，其他裝置也會一起恢復。書的位置和順序不受影響。",
+    "d.tagSep": "、",
     "size.reset": "恢復尺寸",
     "size.previewHeight": "{id} 層高 {n}%",
     "size.previewWidth": "{id} 寬度 {n}%",
@@ -947,8 +958,8 @@ const MSG = {
     "toast.reset": "{id} 已恢復自動排序",
     "toast.resetGap": "，空位也移除了",
     "edit.text": "拖書整理；側板調整櫃寬，隔板在櫃內移動",
-    "edit.textTouch": "長按拖書；側板調整櫃寬，隔板在櫃內移動",
-    "edit.tipTouch": "先按住書脊一下，等它被拿起來再拖曳；直接滑動則是捲動畫布。",
+    "edit.textTouch": "長按拖曳書或板件：側板調櫃寬，隔板在櫃內移動",
+    "edit.tipTouch": "先按住書脊或板件一下，等它被拿起來再拖曳；直接滑動則是捲動畫布。",
     "edit.tip": "在同一層裡拖曳只會改變順序（記錄在這台裝置上）；拖到別的層則會加入「待同步」清單，之後再到 BookBuddy 裡照著修改。",
     "sync.colhd": "BookBuddy 裡目前是 → 要改成",
     "sync.bad": "BookBuddy 裡的「{loc}」在書架上不存在",
@@ -1002,6 +1013,9 @@ const MSG = {
   },
   en: {
     "size.resetDone": "All shelf widths and heights reset to defaults",
+    "size.resetConfirm": "Reset the widths and shelf heights of cabinets A, B and C to their defaults? Book positions and order stay the same.",
+    "size.resetConfirmSync": "Reset the widths and shelf heights of cabinets A, B and C to their defaults? Sync is on, so your other devices will be reset too. Book positions and order stay the same.",
+    "d.tagSep": ", ",
     "size.reset": "Reset sizes",
     "size.previewHeight": "{id} height {n}%",
     "size.previewWidth": "{id} width {n}%",
@@ -1162,8 +1176,8 @@ const MSG = {
     "toast.reset": "{id} is back to auto-sort",
     "toast.resetGap": " (gaps removed)",
     "edit.text": "Drag books; side panels resize cabinets, dividers move inside",
-    "edit.textTouch": "Hold to drag books; resize cabinets or move internal dividers",
-    "edit.tipTouch": "Press and hold a spine until it lifts, then drag. Swiping without holding scrolls the view.",
+    "edit.textTouch": "Hold to drag books or panels: side panels resize, dividers move",
+    "edit.tipTouch": "Press and hold a spine or panel until it lifts, then drag. Swiping without holding scrolls the view.",
     "edit.tip": "Dragging within a shelf only changes the order (saved on this device). Dragging to another shelf adds the book to the Pending list, so you can update it in BookBuddy later.",
     "sync.colhd": "Now in BookBuddy → Change to",
     "sync.bad": "“{loc}” in BookBuddy isn't on the bookshelf",
@@ -1767,9 +1781,11 @@ function restore(text) {
   S.settings.sortAt = now;
   // 备份里没有界面语言（比如旧版本导出的）就保留现在的；有的话算作现在改的
   const bs = (d.state.settings && typeof d.state.settings === 'object') ? d.state.settings : {};
-  if (bs.widths && typeof bs.widths === 'object') for (const c of LAYOUT) S.settings.widthAt[c.id] = now;
+  if (bs.widths && typeof bs.widths === 'object') for (const c of LAYOUT) { S.settings.widths[c.id] = S.settings.widths[c.id] || 100; S.settings.widthAt[c.id] = now; }
   else { S.settings.widths = prev.settings.widths; S.settings.widthAt = prev.settings.widthAt; }
-  if ((bs.boards && typeof bs.boards === 'object') || (bs.heights && typeof bs.heights === 'object')) for (const c of LAYOUT) S.settings.boardAt[c.id] = now;
+  if ((bs.boards && typeof bs.boards === 'object') || (bs.heights && typeof bs.heights === 'object')) {
+    for (const c of LAYOUT) { S.settings.boards[c.id] = S.settings.boards[c.id] || boardPositions(c.id, blank().settings); S.settings.boardAt[c.id] = now; }
+  }
   else { S.settings.boards = prev.settings.boards; S.settings.boardAt = prev.settings.boardAt; }
   if (LANGS.includes(bs.lang)) S.settings.langAt = now;
   else { S.settings.lang = prev.settings.lang; S.settings.langAt = prev.settings.langAt; }
@@ -2052,6 +2068,11 @@ function shelfEl(s, cg) {
     const value = shelfSize(s.id, axis);
     handle.title = t('size.' + axis, { id: axis === 'width' ? s.col : s.id }) + ` (${value}%)`;
     handle.setAttribute('aria-label', handle.title);
+    handle.setAttribute('role', 'slider');
+    handle.setAttribute('aria-orientation', axis === 'width' ? 'horizontal' : 'vertical');
+    handle.setAttribute('aria-valuenow', value);
+    // Safari 默认 Tab 不停在按钮上，显式给 tabindex；一个书柜的宽度只留一个停靠点
+    handle.tabIndex = axis === 'height' || s.n === 1 ? 0 : -1;
     handle.textContent = axis === 'width' ? '↔' : '↕';
   }
   const books = el.appendChild(div('inner')).appendChild(div('books'));
@@ -2153,6 +2174,7 @@ function syncLang() {
 }
 function render() {
   syncLang();
+  $('editResetSize').disabled = !LAYOUT.some(c => sizeChanged(c.id));
   const prev = G && { w: G.w, h: G.h };
   derive();
   buildCase();
@@ -2464,7 +2486,7 @@ function renderDetails() {
     [t('d.series'), b.series && (b.series + (b.volume ? ' · ' + t('vol', { n: b.volume }) : ''))],
     [t('d.publisher'), b.publisher], [t('d.year'), b.year], [t('d.isbn'), b.isbn], [t('d.pages'), b.pages],
     [t('d.genre'), b.genre && (() => { const n = genreName(b.genre), en = genreEnglish(b.genre); return en && en !== n ? t('d.both', { a: n, b: en }) : n; })()],
-    [t('d.tags'), bookTags(b).map(tag => genreName(tag)).join(t('list.sep'))],
+    [t('d.tags'), bookTags(b).map(tag => genreName(tag)).join(t('d.tagSep'))],
     [t('d.lang'), b.lang && ((LANG_NAMES[LANG] || {})[b.lang] || b.lang)], [t('d.loaned'), b.loaned],
   ].filter(r => r[1]);
   dBody.innerHTML = `
@@ -2555,7 +2577,8 @@ function undoMove(k) {
 }
 
 /* ---------- 指针：整理模式拖书 / 鼠标拖动画布 ---------- */
-let drag = null, pan = null, ghost = null, sizeDrag = null;
+let drag = null, pan = null, ghost = null, sizeDrag = null, sizePending = null;
+function cancelSizePending() { if (sizePending) { clearTimeout(sizePending.timer); sizePending = null; } }
 function sizePercent(value, delta, base, scale, min = 50, max = 200) {
   return clamp(Math.round(value + delta / (base * scale) * 100), min, max);
 }
@@ -2565,48 +2588,66 @@ function shelfSize(id, axis) {
   const level = cabinetLevels(s.col, S.settings).find(x => x.id === id);
   return Math.round(level.h / s.h * 10000) / 100;
 }
+const sameBoards = (a, b) => Object.keys({ ...a, ...b }).every(k => Math.abs((a[k] || 0) - (b[k] || 0)) < 1e-9);
+// 返回有没有真的改动；没改动就不记时间，免得白白多一次同步
 function setShelfSize(id, axis, value) {
   const s = SHELF.get(id), col = s.col;
   if (axis === 'width') {
-    S.settings.widths[col] = clamp(Math.round(value), 50, 200);
+    const v = clamp(Math.round(value), 50, 200);
+    if (v === (S.settings.widths[col] || 100)) return false;
+    S.settings.widths[col] = v;
     S.settings.widthAt[col] = Math.max(Date.now(), (S.settings.widthAt[col] || 0) + 1);
   } else {
     const regs = cabinetLevels(col, S.settings).filter(x => !x.top), i = regs.findIndex(x => x.id === id), lower = regs[i], upper = regs[i + 1];
-    if (!lower || !upper) return;
+    if (!lower || !upper) return false;
     const end = clamp(lower.y + s.h * value / 100, lower.y + s.h / 2, upper.y + upper.h - SHELF.get(upper.id).h / 2);
-    S.settings.boards[col] = { ...boardPositions(col, S.settings), [id]: end };
+    const cur = boardPositions(col, S.settings), next = { ...cur, [id]: end };
+    if (sameBoards(cur, next)) return false;
+    S.settings.boards[col] = next;
     S.settings.boardAt[col] = Math.max(Date.now(), (S.settings.boardAt[col] || 0) + 1);
   }
+  return true;
 }
+const sizeChanged = c => (S.settings.widths[c] || 100) !== 100 || !sameBoards(boardPositions(c, S.settings), boardPositions(c, blank().settings));
 function resetSizes() {
-  for (const c of LAYOUT) {
-    const first = SHELVES.find(s => s.col === c.id);
-    setShelfSize(first.id, 'width', 100);
-    S.settings.boards[c.id] = boardPositions(c.id, blank().settings);
-    S.settings.boardAt[c.id] = Math.max(Date.now(), (S.settings.boardAt[c.id] || 0) + 1);
+  const cols = LAYOUT.map(c => c.id).filter(sizeChanged);
+  if (!cols.length) return;
+  if (!confirm(t(L.sync ? 'size.resetConfirmSync' : 'size.resetConfirm'))) return;
+  for (const c of cols) {
+    setShelfSize(SHELVES.find(s => s.col === c).id, 'width', 100);
+    S.settings.boards[c] = boardPositions(c, blank().settings);
+    S.settings.boardAt[c] = Math.max(Date.now(), (S.settings.boardAt[c] || 0) + 1);
   }
   save();
   render();
   toast(t('size.resetDone'));
 }
-function startSizeDrag(e, handle) {
+function startSizeDrag(e, handle, armed) {
   const id = handle.dataset.s, axis = handle.dataset.resize, s = G.levels.get(id), cg = G.cols[s.col];
   const start = shelfSize(id, axis), top = Math.max(...[...G.levels.values()].filter(x => x.col === s.col).map(x => x.y + x.h));
   const frame = box('size-preview', { left: cg.x, top: G.yTop(axis === 'width' ? top : s.y + s.h), width: cg.w, height: (axis === 'width' ? top : s.h) * U });
   const label = frame.appendChild(document.createElement('span'));
+  frame.hidden = !armed;                 // 真的拖起来才显示轮廓
   caseEl.appendChild(frame);
   const upper = G.levels.get(s.col + (s.n + 1));
-  sizeDrag = { id, axis, start, value: start, min: 50,
+  sizeDrag = { id, axis, start, value: start, min: 50, on: !!armed,
     max: axis === 'width' ? 200 : (s.h + upper.h - SHELF.get(upper.id).h / 2) / SHELF.get(id).h * 100,
     pointerId: e.pointerId, x: e.clientX, y: e.clientY, z,
     base: axis === 'width' ? cg.shelves[id] * 100 / start : SHELF.get(id).h * U,
     bottom: G.yTop(s.y), frame, label };
   label.textContent = t(axis === 'width' ? 'size.previewWidth' : 'size.previewHeight', { id: axis === 'width' ? s.col : id, n: start });
-  document.body.classList.add('resizing');
-  stage.setPointerCapture(e.pointerId);
+  if (armed) document.body.classList.add('resizing');
+  try { stage.setPointerCapture(e.pointerId); } catch (err) { /* 指针已经没了 */ }
 }
 function updateSizeDrag(e) {
-  const d = sizeDrag, delta = d.axis === 'width' ? e.clientX - d.x : d.y - e.clientY;
+  const d = sizeDrag;
+  if (d.on === false) {                  // 鼠标按下后先移动 5 像素以上才算开始调尺寸
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) return;
+    d.on = true;
+    d.frame.hidden = false;
+    document.body.classList.add('resizing');
+  }
+  const delta = d.axis === 'width' ? e.clientX - d.x : d.y - e.clientY;
   d.value = sizePercent(d.start, delta, d.base, d.z, d.min, d.max);
   if (d.axis === 'width') d.frame.style.width = d.base * d.value / 100 + 'px';
   else {
@@ -2624,8 +2665,7 @@ function endSizeDrag(commit) {
   document.body.classList.remove('resizing');
   if (stage.hasPointerCapture(d.pointerId)) stage.releasePointerCapture(d.pointerId);
   suppressUntil = performance.now() + 400;
-  if (commit && d.value !== d.start) {
-    setShelfSize(d.id, d.axis, d.value);
+  if (commit && d.on !== false && d.value !== d.start && setShelfSize(d.id, d.axis, d.value)) {
     save();
     render();
   }
@@ -2639,7 +2679,7 @@ stage.addEventListener('keydown', e => {
   if (step == null && e.key !== 'Home') return;
   e.preventDefault();
   const value = shelfSize(id, axis);
-  setShelfSize(id, axis, e.key === 'Home' ? 100 : value + step * (e.shiftKey ? 10 : 1));
+  if (!setShelfSize(id, axis, e.key === 'Home' ? 100 : value + step * (e.shiftKey ? 10 : 1))) return;
   save();
   render();
   caseEl.querySelector(`[data-s="${id}"][data-resize="${axis}"]`).focus();
@@ -2647,11 +2687,14 @@ stage.addEventListener('keydown', e => {
 const marker = div('marker');
 stage.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  if (pinch || drag || sizeDrag) return;
+  if (pinch || drag || sizeDrag || sizePending) return;
   const handle = editing && e.target.closest('[data-resize]');
   if (handle) {
-    e.preventDefault();
-    startSizeDrag(e, handle);
+    if (e.pointerType === 'mouse') { e.preventDefault(); startSizeDrag(e, handle, false); return; }
+    // 触屏：和拖书一样先按住一会儿，直接滑动就是滚动画布
+    const p = { handle, pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY };
+    p.timer = setTimeout(() => { if (sizePending === p) { sizePending = null; startSizeDrag(p, handle, true); } }, HOLD_MS);
+    sizePending = p;
     return;
   }
   const sp = e.target.closest('.spine, .gap');
@@ -2668,6 +2711,10 @@ stage.addEventListener('pointerdown', e => {
   }
 });
 window.addEventListener('pointermove', e => {
+  if (sizePending && e.pointerId === sizePending.pointerId) {
+    if (Math.hypot(e.clientX - sizePending.clientX, e.clientY - sizePending.clientY) > 8) cancelSizePending();
+    return;
+  }
   if (sizeDrag && e.pointerId === sizeDrag.pointerId) {
     e.preventDefault();
     updateSizeDrag(e);
@@ -2693,6 +2740,7 @@ window.addEventListener('pointermove', e => {
   updateTarget();
 }, { passive: false });
 window.addEventListener('pointerup', e => {
+  if (sizePending && e.pointerId === sizePending.pointerId) cancelSizePending();
   if (sizeDrag && e.pointerId === sizeDrag.pointerId) endSizeDrag(true);
   if (pan && e.pointerId === pan.id) {
     if (pan.moved) suppressUntil = performance.now() + 300;
@@ -2702,6 +2750,7 @@ window.addEventListener('pointerup', e => {
   if (drag && e.pointerId === drag.id) endDrag(true);
 });
 window.addEventListener('pointercancel', e => {
+  if (sizePending && e.pointerId === sizePending.pointerId) cancelSizePending();
   if (sizeDrag && e.pointerId === sizeDrag.pointerId) endSizeDrag(false);
   if (pan && e.pointerId === pan.id) { pan = null; document.body.classList.remove('panning'); }
   if (drag && e.pointerId === drag.id) endDrag(false);
@@ -2714,6 +2763,7 @@ function cancelPending() {
 }
 function startDrag() {
   drag.on = true;
+  document.body.classList.add('dragging');
   if (drag.gap) { ghost = div('gapghost'); ghost.textContent = t('gap.label'); }
   else { ghost = drag.el.cloneNode(true); ghost.classList.remove('sel', 'flash', 'match', 'lift'); }
   ghost.id = 'ghost';
@@ -2795,6 +2845,7 @@ function endDrag(commit) {
   suppressUntil = performance.now() + 400;
   cancelAnimationFrame(d.raf);
   d.el.classList.remove('lift');
+  document.body.classList.remove('dragging');
   if (ghost) { ghost.remove(); ghost = null; }
   marker.remove();
   if (d.sh) d.sh.classList.remove('drop');
@@ -2825,6 +2876,7 @@ stage.addEventListener('click', e => {
 });
 function setEditing(on) {
   if (!on && sizeDrag) endSizeDrag(false);
+  if (!on) cancelSizePending();
   editing = on;
   document.body.classList.toggle('editing', on);
   $('btnEdit').classList.toggle('on', on);

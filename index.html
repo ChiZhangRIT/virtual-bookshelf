@@ -41,7 +41,7 @@ body {
 button, select, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 [hidden] { display: none !important; }
-#stage, #results, #details, #legend, dialog { -webkit-tap-highlight-color: transparent; }
+#stage, #results, #details, #legend, #tagLegend, dialog { -webkit-tap-highlight-color: transparent; }
 .muted { color: var(--muted); }
 .small { font-size: 12.5px; }
 .link { border: 0; padding: 0; background: none; color: var(--accent); text-decoration: underline; font-size: inherit; }
@@ -108,12 +108,13 @@ button { cursor: pointer; }
 .loc.warn { background: var(--warn-bg); color: var(--warn-fg); }
 
 /* ---------- 分类图例、提示条 ---------- */
-#legend {
+#legend, #tagLegend {
   flex: none; display: flex; gap: 6px; overflow-x: auto; padding: 6px max(12px, env(safe-area-inset-left));
   border-bottom: 1px solid var(--line); scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
-#legend::-webkit-scrollbar { display: none; }
-#legend:empty { display: none; }
+#legend::-webkit-scrollbar, #tagLegend::-webkit-scrollbar { display: none; }
+#legend:empty, #tagLegend:empty { display: none; }
+.filter-label { flex: none; align-self: center; font-size: 12px; color: var(--muted); }
 .chip {
   flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
   border-radius: 14px; border: 1px solid var(--line); background: var(--card); font-size: 12.5px; white-space: nowrap;
@@ -149,6 +150,15 @@ body.panning #stage { cursor: grabbing; }
   box-shadow: 0 6px 16px rgba(40, 25, 10, .25), inset 0 2px 0 var(--wood-hi);
 }
 .shelf { position: absolute; }
+.size-handle { display: none; position: absolute; z-index: 4; padding: 0; border: 0; color: #5b3b13; background: rgba(255, 190, 60, .3); touch-action: none; }
+body.editing .size-handle { display: block; }
+.size-handle::before { content: ''; position: absolute; inset: -5px; }
+.size-handle:focus-visible { outline: 2px solid var(--hl); outline-offset: 2px; }
+.size-side { right: -12px; top: 0; bottom: 0; width: 12px; cursor: ew-resize; }
+.size-top { left: 0; top: -18px; width: 100%; height: 18px; cursor: ns-resize; }
+.size-preview { position: absolute; z-index: 8; border: 3px solid var(--hl); background: rgba(255, 190, 60, .12); pointer-events: none; }
+.size-preview span { position: absolute; left: 6px; top: 6px; padding: 3px 8px; border-radius: 6px; background: #3a2a10; color: #fff1cc; white-space: nowrap; font-size: 13px; }
+body.resizing { cursor: grabbing; }
 .shelf .inner {
   position: absolute; left: 0; right: 0; top: 0; bottom: 18px; background: var(--wood-back);
   box-shadow: inset 0 12px 16px -10px rgba(0, 0, 0, .6), inset 8px 0 12px -10px rgba(0, 0, 0, .5), inset -8px 0 12px -10px rgba(0, 0, 0, .5);
@@ -157,6 +167,8 @@ body.panning #stage { cursor: grabbing; }
   position: absolute; left: 0; right: 0; bottom: 0; height: 18px; display: flex; align-items: center; gap: 6px;
   padding: 0 8px; background: var(--wood); box-shadow: inset 0 2px 0 var(--wood-hi);
 }
+.shelf .board > * { position: relative; z-index: 5; }
+.shelf .board .plate { pointer-events: none; }
 .shelf.top .inner, .shelf.top .board { background: none; box-shadow: none; }
 .shelf.top.empty .plate { display: none; }
 body.editing .shelf.top.empty .plate { display: block; }
@@ -247,7 +259,7 @@ body.editing .spine { cursor: grab; }
 #editBar {
   position: absolute; z-index: 12; left: 50%; top: 12px; transform: translateX(-50%); display: none; align-items: center; gap: 10px;
   padding: 6px 6px 6px 14px; border-radius: 20px; background: var(--fg); color: var(--bg); box-shadow: var(--shadow);
-  font-size: 13px; white-space: nowrap; max-width: calc(100% - 24px);
+  font-size: 13px; white-space: nowrap; width: max-content; max-width: calc(100% - 24px);
 }
 body.editing #editBar { display: flex; }
 #editBar span { overflow: hidden; text-overflow: ellipsis; }
@@ -378,11 +390,12 @@ body.filedrag #dropHint { display: flex; }
   <button id="btnSync" class="btn"><span data-i18n="bar.sync">待同步</span> <b id="syncN">0</b></button>
   <button id="btnMenu" class="btn" aria-label="设置" data-i18n-aria="menu.h">⋯</button>
 </header>
-<nav id="legend"></nav>
+<nav id="legend" data-i18n-aria="filter.genres" aria-label="分类"></nav>
+<nav id="tagLegend" data-i18n-aria="filter.tags" aria-label="标签"></nav>
 <div id="hint" hidden><span id="hintText"></span><button class="btn sm" id="hintOk" data-i18n="hint.ok">知道了</button></div>
 <main id="main">
   <div id="stage"><div id="sizer"><div id="case"></div></div></div>
-  <div id="editBar"><span id="editText">整理模式：拖动书脊换位置</span><button id="editDone" data-i18n="edit.done">完成</button></div>
+  <div id="editBar"><span id="editText">拖书整理；侧板调整柜宽，隔板在柜内移动</span><button id="editResetSize" data-i18n="size.reset">恢复尺寸</button><button id="editDone" data-i18n="edit.done">完成</button></div>
   <div id="zoom"><button id="zOut" aria-label="缩小" data-i18n-aria="zoom.out">−</button><button id="zFit" data-i18n="zoom.fit">看全部</button><button id="zIn" aria-label="放大" data-i18n-aria="zoom.in">+</button></div>
   <div id="empty" hidden>
     <div class="card">
@@ -430,7 +443,7 @@ body.filedrag #dropHint { display: flex; }
           <option value="en">English</option>
         </select>
       </label>
-      <label class="field check"><span data-i18n="genreEn.label">分类名称同时显示英文</span><input type="checkbox" id="mGenreEn"></label>
+      <label class="field check"><span data-i18n="genreEn.label">分类和标签名称同时显示英文</span><input type="checkbox" id="mGenreEn"></label>
     </section>
     <section>
       <label class="field"><span data-i18n="sort.label">层内自动排序</span>
@@ -530,7 +543,7 @@ const SYNC_FILE = 'bookshelf.json';
 const PUSH_DELAY = 2500;                 // 改完之后等多久再上传（连续拖好几本书时只传一次）
 const DERIVED = new Set(['_w', '_h', '_s', '_loc', '_x']);
 const BOOK_FIELDS = ['k', 'title', 'subtitle', 'series', 'volume', 'author', 'authorSort', 'translator', 'editor', 'publisher',
-  'year', 'genre', 'pages', 'lang', 'isbn', 'loc', 'added', 'img', 'notes', 'summary', 'loaned'];
+  'year', 'genre', 'tags', 'pages', 'lang', 'isbn', 'loc', 'added', 'img', 'notes', 'summary', 'loaned'];
 const SORTS = ['genre', 'title', 'author', 'added'];
 
 const PALETTE = [
@@ -557,6 +570,15 @@ const LANGS = ['zh-Hans', 'zh-Hant', 'en'];
 const LOCALE = { 'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW', en: 'en-US' };
 const MSG = {
   'zh-Hans': {
+    "size.resetDone": "已恢复所有书架的默认宽度和层高",
+    "size.reset": "恢复尺寸",
+    "size.previewHeight": "{id} 层高 {n}%",
+    "size.previewWidth": "{id} 宽度 {n}%",
+    "size.height": "移动 {id} 上方隔板，柜高保持不变",
+    "size.width": "拖动 {id} 柜右侧板调整整柜宽度",
+    "filter.genres": "分类",
+    "filter.tags": "标签",
+    "d.tags": "标签",
     "app.title": "虚拟书架",
     "bar.edit": "整理",
     "bar.sync": "待同步",
@@ -579,7 +601,7 @@ const MSG = {
     "cloud.code": "复制同步码",
     "cloud.stop": "停止同步",
     "lang.label": "界面语言",
-    "genreEn.label": "分类名称同时显示英文",
+    "genreEn.label": "分类和标签名称同时显示英文",
     "sort.label": "层内自动排序",
     "sort.genre": "按分类（同系列放一起）",
     "sort.title": "按书名",
@@ -662,10 +684,10 @@ const MSG = {
     "emptyIOS.app": "在别的设备上开了同步的话，点「从其他设备同步」就行。BookBuddy 导出 CSV 时可以选「存储到“文件”」，这里就能选到。",
     "emptyIOS.safari": "建议先点 Safari 的分享按钮 →「添加到主屏幕」，从主屏幕打开再导入。Safari 里的网站数据 7 天不打开可能会被清掉，主屏幕上的不会；两边的数据也不互通。",
     "res.found": "找到 {n} 本",
-    "res.inGenre": "（只在选中的分类里找）",
+    "res.inGenre": "（只在当前筛选范围内找）",
     "res.more": "还有 {n} 本，多输几个字试试",
-    "res.noneInGenre": "在选中的分类里没有找到「{q}」",
-    "res.allGenres": "在全部分类里找（{n} 本）",
+    "res.noneInGenre": "在当前筛选范围内没有找到「{q}」",
+    "res.allGenres": "清除分类和标签筛选（{n} 本）",
     "res.none": "没有找到「{q}」",
     "where.here": "这层",
     "where.top": "柜顶上",
@@ -708,8 +730,8 @@ const MSG = {
     "toast.undo": "《{title}》回到了 {loc}",
     "toast.reset": "{id} 已恢复自动排序",
     "toast.resetGap": "，空位也去掉了",
-    "edit.text": "整理模式：拖动书脊换位置",
-    "edit.textTouch": "整理模式：按住书脊一下再拖动",
+    "edit.text": "拖书整理；侧板调整柜宽，隔板在柜内移动",
+    "edit.textTouch": "长按拖书；侧板调整柜宽，隔板在柜内移动",
     "edit.tipTouch": "先按住书脊一下，等它拿起来再拖；直接滑动是滚动画布。",
     "edit.tip": "同一层里拖动只改顺序（记在这台设备上）；拖到别的层会加进「待同步」清单，之后到 BookBuddy 里照着改。",
     "sync.colhd": "BookBuddy 里现在是 → 要改成",
@@ -763,6 +785,15 @@ const MSG = {
     "stop.done": "这台设备已停止同步",
   },
   'zh-Hant': {
+    "size.resetDone": "已恢復所有書架的預設寬度和層高",
+    "size.reset": "恢復尺寸",
+    "size.previewHeight": "{id} 層高 {n}%",
+    "size.previewWidth": "{id} 寬度 {n}%",
+    "size.height": "移動 {id} 上方隔板，櫃高保持不變",
+    "size.width": "拖曳 {id} 櫃右側板調整整櫃寬度",
+    "filter.genres": "分類",
+    "filter.tags": "標籤",
+    "d.tags": "標籤",
     "app.title": "虛擬書架",
     "bar.edit": "整理",
     "bar.sync": "待同步",
@@ -785,7 +816,7 @@ const MSG = {
     "cloud.code": "複製同步碼",
     "cloud.stop": "停止同步",
     "lang.label": "介面語言",
-    "genreEn.label": "分類名稱同時顯示英文",
+    "genreEn.label": "分類和標籤名稱同時顯示英文",
     "sort.label": "層內自動排序",
     "sort.genre": "依分類（同系列放在一起）",
     "sort.title": "依書名",
@@ -868,10 +899,10 @@ const MSG = {
     "emptyIOS.app": "如果已在別的裝置上開啟同步，點一下「從其他裝置同步」就行了。BookBuddy 匯出 CSV 時可以選擇「儲存到『檔案』」，這裡就能選到。",
     "emptyIOS.safari": "建議先點一下 Safari 的分享按鈕 →「加入主畫面」，從主畫面開啟後再匯入。Safari 裡的網站資料若 7 天沒有開啟可能會被清除，主畫面上的則不會；兩邊的資料也不互通。",
     "res.found": "找到 {n} 本",
-    "res.inGenre": "（只在選取的分類中搜尋）",
+    "res.inGenre": "（只在目前篩選範圍內搜尋）",
     "res.more": "還有 {n} 本，試試多輸入幾個字",
-    "res.noneInGenre": "在選取的分類中找不到「{q}」",
-    "res.allGenres": "在所有分類中搜尋（{n} 本）",
+    "res.noneInGenre": "在目前篩選範圍內找不到「{q}」",
+    "res.allGenres": "清除分類和標籤篩選（{n} 本）",
     "res.none": "找不到「{q}」",
     "where.here": "這層",
     "where.top": "櫃頂上",
@@ -914,8 +945,8 @@ const MSG = {
     "toast.undo": "《{title}》已回到 {loc}",
     "toast.reset": "{id} 已恢復自動排序",
     "toast.resetGap": "，空位也移除了",
-    "edit.text": "整理模式：拖曳書脊來調換位置",
-    "edit.textTouch": "整理模式：按住書脊一下再拖曳",
+    "edit.text": "拖書整理；側板調整櫃寬，隔板在櫃內移動",
+    "edit.textTouch": "長按拖書；側板調整櫃寬，隔板在櫃內移動",
     "edit.tipTouch": "先按住書脊一下，等它被拿起來再拖曳；直接滑動則是捲動畫布。",
     "edit.tip": "在同一層裡拖曳只會改變順序（記錄在這台裝置上）；拖到別的層則會加入「待同步」清單，之後再到 BookBuddy 裡照著修改。",
     "sync.colhd": "BookBuddy 裡目前是 → 要改成",
@@ -969,6 +1000,15 @@ const MSG = {
     "stop.done": "這台裝置已停止同步",
   },
   en: {
+    "size.resetDone": "All shelf widths and heights reset to defaults",
+    "size.reset": "Reset sizes",
+    "size.previewHeight": "{id} height {n}%",
+    "size.previewWidth": "{id} width {n}%",
+    "size.height": "Move the divider above {id}; cabinet height stays fixed",
+    "size.width": "Drag the right side of cabinet {id} to resize all its shelves",
+    "filter.genres": "Genres",
+    "filter.tags": "Tags",
+    "d.tags": "Tags",
     "app.title": "Virtual Bookshelf",
     "bar.edit": "Arrange",
     "bar.sync": "Pending",
@@ -991,7 +1031,7 @@ const MSG = {
     "cloud.code": "Copy sync code",
     "cloud.stop": "Stop syncing",
     "lang.label": "Language",
-    "genreEn.label": "Also show genre names in English",
+    "genreEn.label": "Also show genre and tag names in English",
     "sort.label": "Auto-sort within shelves",
     "sort.genre": "By genre (series kept together)",
     "sort.title": "By title",
@@ -1074,10 +1114,10 @@ const MSG = {
     "emptyIOS.app": "If you've already set up sync on another device, just tap “Sync from another device”. When you export the CSV from BookBuddy, choose “Save to Files” so you can pick it here.",
     "emptyIOS.safari": "Tip: First tap Safari's Share button → “Add to Home Screen”, then open the bookshelf from your Home Screen and import there. Safari may clear website data if you don't open the site for 7 days, but the Home Screen version won't. The two also don't share data.",
     "res.found": "{n} {n|book|books} found",
-    "res.inGenre": " (in selected genres only)",
+    "res.inGenre": " (within current filters)",
     "res.more": "{n} more. Type a few more characters to narrow it down",
-    "res.noneInGenre": "No results for “{q}” in the selected genres",
-    "res.allGenres": "Search all genres ({n} {n|book|books})",
+    "res.noneInGenre": "No results for “{q}” within the current filters",
+    "res.allGenres": "Clear genre and tag filters ({n} {n|book|books})",
     "res.none": "No results for “{q}”",
     "where.here": "this shelf",
     "where.top": "the cabinet top",
@@ -1120,8 +1160,8 @@ const MSG = {
     "toast.undo": "“{title}” moved back to {loc}",
     "toast.reset": "{id} is back to auto-sort",
     "toast.resetGap": " (gaps removed)",
-    "edit.text": "Arrange mode: drag a spine to move a book",
-    "edit.textTouch": "Arrange mode: press and hold a spine, then drag",
+    "edit.text": "Drag books; side panels resize cabinets, dividers move inside",
+    "edit.textTouch": "Hold to drag books; resize cabinets or move internal dividers",
     "edit.tipTouch": "Press and hold a spine until it lifts, then drag. Swiping without holding scrolls the view.",
     "edit.tip": "Dragging within a shelf only changes the order (saved on this device). Dragging to another shelf adds the book to the Pending list, so you can update it in BookBuddy later.",
     "sync.colhd": "Now in BookBuddy → Change to",
@@ -1248,8 +1288,21 @@ const GENRE_HANT = {
   "Transportation": "交通",
   "Antiques & Collectibles": "古董收藏",
 };
-// 用户自己起的中文分类名（不在 BookBuddy 的标准分类里）
+// BookBuddy 中自定义的分类和标签名称
 const GENRE_CUSTOM = {
+  'Audio Recordings': { 'zh-Hans': '录音', 'zh-Hant': '錄音', en: 'Audio Recordings' },
+  'Literature': { 'zh-Hans': '文学', 'zh-Hant': '文學', en: 'Literature' },
+  'Religion & Mythology': { 'zh-Hans': '宗教与神话', 'zh-Hant': '宗教與神話', en: 'Religion & Mythology' },
+  'Psychology & Growth': { 'zh-Hans': '心理与成长', 'zh-Hant': '心理與成長', en: 'Psychology & Growth' },
+  'Philosophy & Society': { 'zh-Hans': '哲学与社会', 'zh-Hant': '哲學與社會', en: 'Philosophy & Society' },
+  'Art & Design': { 'zh-Hans': '艺术与设计', 'zh-Hant': '藝術與設計', en: 'Art & Design' },
+  '中国文史': { 'zh-Hans': '中国文史', 'zh-Hant': '中國文史', en: 'Chinese Literature & History' },
+  '古典文学': { 'zh-Hans': '古典文学', 'zh-Hant': '古典文學', en: 'Classical Literature' },
+  '历史&考古': { 'zh-Hans': '历史与考古', 'zh-Hant': '歷史與考古', en: 'History & Archaeology' },
+  '语言文字学': { 'zh-Hans': '语言文字学', 'zh-Hant': '語言文字學', en: 'Language & Philology' },
+  '古代哲学思想': { 'zh-Hans': '古代哲学思想', 'zh-Hant': '古代哲學思想', en: 'Ancient Philosophy' },
+  '文学研究': { 'zh-Hans': '文学研究', 'zh-Hant': '文學研究', en: 'Literary Studies' },
+  '书法&篆刻': { 'zh-Hans': '书法与篆刻', 'zh-Hant': '書法與篆刻', en: 'Calligraphy & Seal Carving' },
   '古代文學': { 'zh-Hans': '古代文学', 'zh-Hant': '古代文學', en: 'Classical Chinese Literature' },
   '古代文学': { 'zh-Hans': '古代文学', 'zh-Hant': '古代文學', en: 'Classical Chinese Literature' },
   '文字學': { 'zh-Hans': '文字学', 'zh-Hant': '文字學', en: 'Chinese Philology' },
@@ -1278,7 +1331,6 @@ for (const c of LAYOUT) {
   if (c.top) SHELVES.push({ id: c.id + (regs.length + 1), col: c.id, n: regs.length + 1, y: Math.max(...regs.map(r => r.y + r.h)), h: 1, top: true });
 }
 for (const s of SHELVES) SHELF.set(s.id, s);
-const TOP_UNITS = Math.max(...SHELVES.map(s => s.y + s.h));
 
 /* ---------- 设备 ---------- */
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1291,7 +1343,7 @@ const DEVICE = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacI
 /* ---------- DOM ---------- */
 const $ = id => document.getElementById(id);
 const stage = $('stage'), sizer = $('sizer'), caseEl = $('case'), details = $('details'), dBody = $('dBody');
-const qEl = $('q'), qClear = $('qClear'), results = $('results'), legend = $('legend');
+const qEl = $('q'), qClear = $('qClear'), results = $('results'), legend = $('legend'), tagLegend = $('tagLegend');
 const fileIn = $('fileIn'), dlgSync = $('dlgSync'), dlgMenu = $('dlgMenu'), dlgCloud = $('dlgCloud');
 
 /* ---------- 小工具 ---------- */
@@ -1322,17 +1374,20 @@ function box(cls, st) {
   for (const k in st) el.style[k] = st[k] + 'px';
   return el;
 }
-// 分类的显示名：BookBuddy 的标准英文分类按界面语言翻译；自己起的名字原样显示
+const customGenre = g => GENRE_CUSTOM[g] || GENRE_CUSTOM[norm(g)];
+// 已知分类按界面语言显示；未收录的自定义名称保留原文
 function genreName(g, lang = LANG) {
   if (!g) return t('genre.none');
-  if (GENRE_CUSTOM[g]) return GENRE_CUSTOM[g][lang] || g;
+  const custom = customGenre(g);
+  if (custom) return custom[lang] || g;
   if (lang === 'en') return g;
   return (lang === 'zh-Hant' ? GENRE_HANT[g] : GENRE_ZH[g]) || g;
 }
 // 同时显示英文时用的英文名（没有就是空）
 function genreEnglish(g) {
   if (!g) return '';
-  if (GENRE_CUSTOM[g]) return GENRE_CUSTOM[g].en || '';
+  const custom = customGenre(g);
+  if (custom) return custom.en || '';
   return /^[\x20-\x7e]+$/.test(g) ? g : '';
 }
 const genreLabel = g => genreName(g);
@@ -1352,7 +1407,26 @@ function textOn(hex) {
 /* ---------- 状态 ---------- */
 // moves / orders 之外还记着删除和修改的时间（gone、orderAt），多台设备合并时逐条取最新的
 function blank() {
-  return { v: 1, books: [], moves: {}, gone: {}, orders: {}, orderAt: {}, settings: { sort: 'genre', sortAt: 0, colors: {}, lang: '', langAt: 0, genreEn: false, genreEnAt: 0 }, meta: null };
+  return { v: 1, books: [], moves: {}, gone: {}, orders: {}, orderAt: {}, settings: { sort: 'genre', sortAt: 0, colors: {}, lang: '', langAt: 0, genreEn: false, genreEnAt: 0, widths: {}, widthAt: {}, boards: {}, boardAt: {} }, meta: null };
+}
+const sizeTime = value => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : 0;
+// 柜顶、柜底固定；隔板只能在相邻层的最小净高之间移动。
+function cabinetLevels(col, settings) {
+  const shelves = SHELVES.filter(s => s.col === col), regs = shelves.filter(s => !s.top);
+  const total = regs.reduce((n, s) => n + s.h, 0), boards = settings.boards[col] || {};
+  let y = 0;
+  const levels = regs.map((s, i) => {
+    const remaining = regs.slice(i + 1).reduce((n, next) => n + next.h / 2, 0);
+    const value = Number(boards[s.id]);
+    const end = i === regs.length - 1 ? total : clamp(Number.isFinite(value) ? value : s.y + s.h, y + s.h / 2, total - remaining);
+    const level = { ...s, y, h: end - y };
+    y = end;
+    return level;
+  });
+  return levels.concat(shelves.filter(s => s.top).map(s => ({ ...s, y: total })));
+}
+function boardPositions(col, settings) {
+  return Object.fromEntries(cabinetLevels(col, settings).filter(s => !s.top).slice(0, -1).map(s => [s.id, s.y + s.h]));
 }
 // 读本地数据或备份文件时逐项检查，格式不对的丢掉
 function normalizeState(s) {
@@ -1382,6 +1456,30 @@ function normalizeState(s) {
   out.settings.langAt = Number(st.langAt) || 0;
   out.settings.genreEn = st.genreEn === true;
   out.settings.genreEnAt = Number(st.genreEnAt) || 0;
+  for (const c of LAYOUT) {
+    const shelves = SHELVES.filter(s => s.col === c.id), valid = w => Number.isFinite(Number(w)) && Number(w) >= 50 && Number(w) <= 200;
+    if (valid(st.widths && st.widths[c.id])) {
+      out.settings.widths[c.id] = Number(st.widths[c.id]);
+      out.settings.widthAt[c.id] = sizeTime(st.widthAt && st.widthAt[c.id]);
+    } else if (shelves.some(s => valid(st.widths && st.widths[s.id]))) {
+      // 旧版逐层宽度：用最宽的一层统一整个柜，包含未调过的默认宽度。
+      out.settings.widths[c.id] = Math.max(...shelves.map(s => valid(st.widths[s.id]) ? Number(st.widths[s.id]) : 100));
+      out.settings.widthAt[c.id] = Math.max(0, ...shelves.map(s => sizeTime(st.widthAt && st.widthAt[s.id])));
+    }
+    if (st.boards && st.boards[c.id] && typeof st.boards[c.id] === 'object') {
+      out.settings.boards[c.id] = boardPositions(c.id, { boards: st.boards });
+      out.settings.boardAt[c.id] = sizeTime(st.boardAt && st.boardAt[c.id]);
+    } else if (shelves.some(s => !s.top && valid(st.heights && st.heights[s.id]))) {
+      // 旧版层高按比例收回原柜高，柜顶上方的空间不参与分配。
+      const regs = shelves.filter(s => !s.top), total = regs.reduce((n, s) => n + s.h, 0);
+      const weights = regs.map(s => s.h * (valid(st.heights[s.id]) ? Number(st.heights[s.id]) : 100));
+      const sum = weights.reduce((a, b) => a + b, 0), boards = {};
+      let y = 0;
+      regs.slice(0, -1).forEach((s, i) => { y += weights[i] / sum * total; boards[s.id] = y; });
+      out.settings.boards[c.id] = boardPositions(c.id, { boards: { [c.id]: boards } });
+      out.settings.boardAt[c.id] = Math.max(0, ...regs.map(s => sizeTime(st.heightAt && st.heightAt[s.id])));
+    }
+  }
   for (const [g, c] of Object.entries(st.colors && typeof st.colors === 'object' ? st.colors : {})) {
     if (/^#[0-9a-f]{6}$/i.test(c)) out.settings.colors[g] = c;
   }
@@ -1448,7 +1546,7 @@ let SPINE = new Map();    // key → 书脊元素
 let D = { byShelf: new Map(), pos: new Map(), unplaced: [] };
 let G = null;             // 当前画布尺寸
 let z = 1, fitMode = true, fitAll = false;
-let selectedK = null, editing = false, query = '', terms = [], genreOn = new Set();
+let selectedK = null, editing = false, query = '', terms = [], genreOn = new Set(), tagOn = new Set();
 let lastResults = [], activeIdx = 0, suppressUntil = 0;
 const COLL = new Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'en'], { numeric: true, sensitivity: 'base' });
 
@@ -1560,7 +1658,7 @@ function importCsv(text, name) {
       title, subtitle: get(r, 'Subtitle'), series: get(r, 'Series'), volume: get(r, 'Volume'),
       author: get(r, 'Author'), authorSort: get(r, 'Author (Last, First)'), translator: get(r, 'Translator'), editor: get(r, 'Editor'),
       publisher: get(r, 'Publisher'), year: get(r, 'Year Published') || get(r, 'Date Published').slice(0, 4),
-      genre: get(r, 'Genre'), pages: get(r, 'Number of Pages'), lang: get(r, 'Language'), isbn: get(r, 'ISBN'),
+      genre: get(r, 'Genre'), tags: get(r, 'Tags'), pages: get(r, 'Number of Pages'), lang: get(r, 'Language'), isbn: get(r, 'ISBN'),
       loc: get(r, 'Physical Location'), added: get(r, 'Date Added'), img: get(r, 'Uploaded Image URL'),
       notes: get(r, 'Notes'), summary: get(r, 'Summary'), loaned: get(r, 'Loaned To'),
     });
@@ -1666,6 +1764,10 @@ function restore(text) {
   S.settings.sortAt = now;
   // 备份里没有界面语言（比如旧版本导出的）就保留现在的；有的话算作现在改的
   const bs = (d.state.settings && typeof d.state.settings === 'object') ? d.state.settings : {};
+  if (bs.widths && typeof bs.widths === 'object') for (const c of LAYOUT) S.settings.widthAt[c.id] = now;
+  else { S.settings.widths = prev.settings.widths; S.settings.widthAt = prev.settings.widthAt; }
+  if ((bs.boards && typeof bs.boards === 'object') || (bs.heights && typeof bs.heights === 'object')) for (const c of LAYOUT) S.settings.boardAt[c.id] = now;
+  else { S.settings.boards = prev.settings.boards; S.settings.boardAt = prev.settings.boardAt; }
   if (LANGS.includes(bs.lang)) S.settings.langAt = now;
   else { S.settings.lang = prev.settings.lang; S.settings.langAt = prev.settings.langAt; }
   if (typeof bs.genreEn === 'boolean') S.settings.genreEnAt = now;
@@ -1691,7 +1793,7 @@ function prep(b) {
   const p = parseInt(b.pages, 10), av = b.genre === 'Audio & Video';
   b._w = p > 0 ? clamp(Math.round(12 + p * 0.045), 16, 44) : av ? 16 : 26;
   b._h = Math.round((U - BT - 10) * (av ? 0.5 : 0.72 + (hash(b.k) % 1000) / 1000 * 0.22));
-  b._s = norm([b.title, b.subtitle, b.author, b.authorSort, b.series, b.translator, b.editor, b.publisher, b.isbn].join('\n'));
+  b._s = norm([b.title, b.subtitle, b.author, b.authorSort, b.series, b.translator, b.editor, b.publisher, b.isbn, b.tags].join('\n'));
   b._loc = normLoc(b.loc);
   b._x = '';
 }
@@ -1715,6 +1817,12 @@ function genreCounts() {
   const m = new Map();
   for (const b of S.books) m.set(b.genre, (m.get(b.genre) || 0) + 1);
   return new Map([...m].sort((a, b) => b[1] - a[1] || COLL.compare(a[0], b[0])));
+}
+const bookTags = b => [...new Set(str(b.tags).split(/[,;，；\n]/).map(x => x.trim()).filter(Boolean))];
+function tagCounts() {
+  const counts = new Map();
+  for (const b of S.books) for (const tag of bookTags(b)) counts.set(tag, (counts.get(tag) || 0) + 1);
+  return new Map([...counts].sort((a, b) => b[1] - a[1] || COLL.compare(a[0], b[0])));
 }
 // 每个分类固定一种颜色；已经不存在的分类，它的颜色可以让给新分类
 function ensureColors() {
@@ -1781,6 +1889,8 @@ function derive() {
 
 /* ---------- 画书架 ---------- */
 function geometry() {
+  const levels = new Map(LAYOUT.flatMap(c => cabinetLevels(c.id, S.settings)).map(s => [s.id, s]));
+  const top = Math.max(...[...levels.values()].map(s => s.y + s.h));
   let base = 380;
   for (const c of LAYOUT) {
     let need = 0;
@@ -1795,11 +1905,12 @@ function geometry() {
   const cols = {};
   let x = M;
   for (const c of LAYOUT) {
-    const w = Math.round(base * (c.width || 1));
-    cols[c.id] = { x, w };
+    const w = Math.round(base * (c.width || 1) * (S.settings.widths[c.id] || 100) / 100);
+    const shelves = Object.fromEntries(SHELVES.filter(s => s.col === c.id).map(s => [s.id, w]));
+    cols[c.id] = { x, w, shelves };
     x += w + GAP;
   }
-  return { w: x - GAP + M, h: 0, cols, floorY: M + TOP_UNITS * U, yTop: yu => M + (TOP_UNITS - yu) * U };
+  return { w: x - GAP + M, h: 0, cols, levels, floorY: M + top * U, yTop: yu => M + (top - yu) * U };
 }
 /* 书脊上的字：书名尽量完整显示（字号从 12 往下缩，书脊够宽时分两三列），还有地方再放作者 */
 const SPINE_FONT = '"Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif';
@@ -1885,16 +1996,17 @@ function fixSpineText() {
     for (let keep = 0.9; over(s) && keep > 0.2; keep -= 0.1) s.textContent = ellipsize(full, textLen(full) * fs * keep, fs);
   }
 }
-function spineEl(b, maxH) {
+function spineEl(b, maxH, widthScale = 1) {
   const el = div('spine');
   const c = colorOf(b.genre), h = Math.min(b._h, maxH || Infinity);
   el.dataset.k = b.k;
-  el.style.width = b._w + 'px';
+  const w = Math.max(8, Math.floor(b._w * widthScale));
+  el.style.width = w + 'px';
   el.style.height = h + 'px';
   el.style.setProperty('--c', c);
   el.style.color = textOn(c);
   el.title = b.title + (b._x ? ' · ' + b._x : '') + (b.author ? ' — ' + b.author : '');
-  for (const ln of spineLayout(b, b._w, h).lines) {
+  for (const ln of spineLayout(b, w, h).lines) {
     const s = el.appendChild(document.createElement('span'));
     if (ln.cls) s.className = ln.cls;
     s.style.fontSize = ln.fs + 'px';
@@ -1920,13 +2032,28 @@ function gapEl(k) {
 }
 function shelfEl(s, cg) {
   const list = D.byShelf.get(s.id);
+  const w = cg.shelves[s.id], seq = D.seq.get(s.id), gaps = seq.filter(isGap).length;
+  const bookWidth = list.reduce((n, b) => n + b._w, 0);
+  const widthScale = bookWidth ? Math.min(1, (w - 2 * ST - 2 * PAD - gaps * 36 - Math.max(0, seq.length - 1)) / bookWidth) : 1;
   const el = box('shelf' + (s.top ? ' top' : '') + (list.length ? '' : ' empty'), {
-    left: cg.x + ST, width: cg.w - 2 * ST, top: G.yTop(s.y + s.h), height: s.h * U,
+    left: cg.x + ST, width: w - 2 * ST, top: G.yTop(s.y + s.h), height: s.h * U,
   });
   el.dataset.s = s.id;
+  for (const axis of ['width', 'height']) {
+    const upper = SHELF.get(s.col + (s.n + 1));
+    if (axis === 'height' && (s.top || !upper || upper.top)) continue;
+    const handle = el.appendChild(document.createElement('button'));
+    handle.className = 'size-handle ' + (axis === 'width' ? 'size-side' : 'size-top');
+    handle.dataset.resize = axis;
+    handle.dataset.s = s.id;
+    const value = shelfSize(s.id, axis);
+    handle.title = t('size.' + axis, { id: axis === 'width' ? s.col : s.id }) + ` (${value}%)`;
+    handle.setAttribute('aria-label', handle.title);
+    handle.textContent = axis === 'width' ? '↔' : '↕';
+  }
   const books = el.appendChild(div('inner')).appendChild(div('books'));
   const maxH = s.h * U - BT - 6;    // 矮的格子里，书也画得矮一点
-  for (const k of D.seq.get(s.id)) books.appendChild(isGap(k) ? gapEl(k) : spineEl(BOOK.get(k), maxH));
+  for (const k of seq) books.appendChild(isGap(k) ? gapEl(k) : spineEl(BOOK.get(k), maxH, widthScale));
   const board = el.appendChild(div('board'));
   board.appendChild(div('plate')).textContent = t(s.top ? 'plate.top' : 'plate', { id: s.id, n: list.length });
   const btn = (cls, key, val, text) => {
@@ -1946,11 +2073,11 @@ function buildCase() {
   frag.appendChild(box('floor', { left: M - 12, top: G.floorY, width: G.w - 2 * M + 24, height: FLOOR }));
   for (const c of LAYOUT) {
     const cg = G.cols[c.id];
-    const regs = SHELVES.filter(s => s.col === c.id && !s.top);
+    const regs = [...G.levels.values()].filter(s => s.col === c.id && !s.top);
     const y0 = Math.min(...regs.map(s => s.y)), y1 = Math.max(...regs.map(s => s.y + s.h));
     frag.appendChild(box('colname', { left: cg.x, width: cg.w, top: M + (G.yTop(y1) - BT - M) / 2 - 36 })).textContent = c.id;
     frag.appendChild(box('cab', { left: cg.x, width: cg.w, top: G.yTop(y1) - BT, height: (y1 - y0) * U + BT }));
-    for (const s of SHELVES) if (s.col === c.id) frag.appendChild(shelfEl(s, cg));
+    for (const s of G.levels.values()) if (s.col === c.id) frag.appendChild(shelfEl(s, cg));
   }
   caseEl.textContent = '';
   caseEl.appendChild(frag);
@@ -1974,10 +2101,18 @@ function buildCase() {
 }
 function renderLegend() {
   const counts = genreCounts();
+  const tags = tagCounts();
+  for (const g of genreOn) if (!counts.has(g)) genreOn.delete(g);
+  for (const tag of tagOn) if (!tags.has(tag)) tagOn.delete(tag);
   const both = S.settings.genreEn && LANG !== 'en';
-  legend.innerHTML = (genreOn.size ? `<button class="chip clear" data-clear="1">${esc(t('chip.clear'))}</button>` : '') + [...counts].map(([g, n]) => {
+  legend.innerHTML = (counts.size ? `<span class="filter-label">${esc(t('filter.genres'))}</span>` : '') + (genreOn.size ? `<button class="chip clear" data-clear="1">${esc(t('chip.clear'))}</button>` : '') + [...counts].map(([g, n]) => {
     const name = genreLabel(g), en = both ? genreEnglish(g) : '';
     return `<button class="chip${genreOn.has(g) ? ' on' : ''}" data-g="${esc(g)}" style="--c:${esc(colorOf(g))}"><i></i>${esc(name)}` +
+      (en && en !== name ? `<span class="en">${esc(en)}</span>` : '') + `<small>${n}</small></button>`;
+  }).join('');
+  tagLegend.innerHTML = (tags.size ? `<span class="filter-label">${esc(t('filter.tags'))}</span>` : '') + (tagOn.size ? `<button class="chip clear" data-clear="1">${esc(t('chip.clear'))}</button>` : '') + [...tags].map(([tag, n]) => {
+    const name = genreName(tag), en = both ? genreEnglish(tag) : '';
+    return `<button class="chip${tagOn.has(tag) ? ' on' : ''}" data-tag="${esc(tag)}">${esc(name)}` +
       (en && en !== name ? `<span class="en">${esc(en)}</span>` : '') + `<small>${n}</small></button>`;
   }).join('');
 }
@@ -2081,11 +2216,13 @@ let pinch = null;
 stage.addEventListener('touchstart', e => {
   if (e.touches.length !== 2) return;
   if (drag) endDrag(false);
+  if (sizeDrag) endSizeDrag(false);
   const [a, b] = e.touches, r = sizer.getBoundingClientRect();
   const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
   pinch = { d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, z0: z, px: (mx - r.left) / z, py: (my - r.top) / z };
 }, { passive: true });
 stage.addEventListener('touchmove', e => {
+  if (sizeDrag && e.cancelable) { e.preventDefault(); return; }
   if (drag && drag.on && drag.touch && e.cancelable) { e.preventDefault(); return; }   // 拿起书之后不让画布跟着滚
   if (!pinch || e.touches.length !== 2) return;
   // 如果一根手指已经让画布滚起来了，就没法接管；交给下面的 gesturechange 来缩放
@@ -2116,6 +2253,7 @@ document.addEventListener('gesturechange', e => {
 document.addEventListener('gestureend', e => { e.preventDefault(); gz = null; });
 // 其它浏览器的触控板捏合（ctrl + 滚轮），以及 ⌘ + 滚轮
 stage.addEventListener('wheel', e => {
+  if (sizeDrag) { e.preventDefault(); return; }
   if (!(e.ctrlKey || e.metaKey) || gz != null) return;
   e.preventDefault();
   fitMode = false;
@@ -2123,8 +2261,8 @@ stage.addEventListener('wheel', e => {
 }, { passive: false });
 
 /* ---------- 搜索与高亮 ---------- */
-function matches(b, ignoreGenre) {
-  return (ignoreGenre || !genreOn.size || genreOn.has(b.genre)) && terms.every(t => b._s.includes(t));
+function matches(b, ignoreFilters) {
+  return (ignoreFilters || ((!genreOn.size || genreOn.has(b.genre)) && (!tagOn.size || bookTags(b).some(tag => tagOn.has(tag))))) && terms.every(t => b._s.includes(t));
 }
 function setQuery(v) {
   query = v;
@@ -2135,7 +2273,7 @@ function setQuery(v) {
   renderResults();
 }
 function applyHighlight() {
-  const active = terms.length > 0 || genreOn.size > 0;
+  const active = terms.length > 0 || genreOn.size > 0 || tagOn.size > 0;
   caseEl.classList.toggle('dim', active);
   for (const [k, el] of SPINE) el.classList.toggle('match', active && matches(BOOK.get(k)));
 }
@@ -2151,13 +2289,13 @@ function renderResults() {
   activeIdx = clamp(activeIdx, 0, Math.max(0, lastResults.length - 1));
   let html;
   if (list.length) {
-    html = `<div class="rh">${esc(t('res.found', { n: list.length }) + (genreOn.size ? t('res.inGenre') : ''))}</div>` + lastResults.map((b, i) => {
+    html = `<div class="rh">${esc(t('res.found', { n: list.length }) + (genreOn.size || tagOn.size ? t('res.inGenre') : ''))}</div>` + lastResults.map((b, i) => {
       const extra = b._x || (b.series && b.volume ? t('vol', { n: b.volume }) : '');
       const sub = [b.subtitle, extra !== b.subtitle ? extra : ''].filter(Boolean).join(' · ');
       return `<div class="r${i === activeIdx ? ' act' : ''}" data-k="${esc(b.k)}"><span class="sw" style="background:${esc(colorOf(b.genre))}"></span>` +
         `<div class="tx"><div class="tt">${esc(b.title)}${sub ? ` <small>${esc(sub)}</small>` : ''}</div><div class="au">${esc(b.author)}</div></div>${locChip(b)}</div>`;
     }).join('') + (list.length > lastResults.length ? `<div class="none">${esc(t('res.more', { n: list.length - lastResults.length }))}</div>` : '');
-  } else if (genreOn.size) {
+  } else if (genreOn.size || tagOn.size) {
     const all = S.books.filter(b => matches(b, true)).length;
     html = `<div class="none">${esc(t('res.noneInGenre', { q: query }))}` +
       (all ? `<br><button class="btn sm" data-act="allgenres">${esc(t('res.allGenres', { n: all }))}</button>` : '') + '</div>';
@@ -2201,6 +2339,7 @@ results.addEventListener('mousedown', e => e.preventDefault());
 results.addEventListener('click', e => {
   if (e.target.closest('[data-act="allgenres"]')) {
     genreOn.clear();
+    tagOn.clear();
     renderLegend();
     applyHighlight();
     qEl.focus();
@@ -2210,12 +2349,13 @@ results.addEventListener('click', e => {
   const r = e.target.closest('.r');
   if (r) pick(r.dataset.k);
 });
-legend.addEventListener('click', e => {
+for (const nav of [legend, tagLegend]) nav.addEventListener('click', e => {
   const c = e.target.closest('.chip');
   if (!c) return;
-  if (c.dataset.clear) genreOn.clear();
-  else if (genreOn.has(c.dataset.g)) genreOn.delete(c.dataset.g);
-  else genreOn.add(c.dataset.g);
+  const active = nav === legend ? genreOn : tagOn, key = nav === legend ? c.dataset.g : c.dataset.tag;
+  if (c.dataset.clear) active.clear();
+  else if (active.has(key)) active.delete(key);
+  else active.add(key);
   renderLegend();
   applyHighlight();
   renderResults();
@@ -2321,6 +2461,7 @@ function renderDetails() {
     [t('d.series'), b.series && (b.series + (b.volume ? ' · ' + t('vol', { n: b.volume }) : ''))],
     [t('d.publisher'), b.publisher], [t('d.year'), b.year], [t('d.isbn'), b.isbn], [t('d.pages'), b.pages],
     [t('d.genre'), b.genre && (() => { const n = genreName(b.genre), en = genreEnglish(b.genre); return en && en !== n ? t('d.both', { a: n, b: en }) : n; })()],
+    [t('d.tags'), bookTags(b).map(tag => genreName(tag)).join(t('list.sep'))],
     [t('d.lang'), b.lang && ((LANG_NAMES[LANG] || {})[b.lang] || b.lang)], [t('d.loaned'), b.loaned],
   ].filter(r => r[1]);
   dBody.innerHTML = `
@@ -2411,11 +2552,105 @@ function undoMove(k) {
 }
 
 /* ---------- 指针：整理模式拖书 / 鼠标拖动画布 ---------- */
-let drag = null, pan = null, ghost = null;
+let drag = null, pan = null, ghost = null, sizeDrag = null;
+function sizePercent(value, delta, base, scale, min = 50, max = 200) {
+  return clamp(Math.round(value + delta / (base * scale) * 100), min, max);
+}
+function shelfSize(id, axis) {
+  const s = SHELF.get(id);
+  if (axis === 'width') return S.settings.widths[s.col] || 100;
+  const level = cabinetLevels(s.col, S.settings).find(x => x.id === id);
+  return Math.round(level.h / s.h * 10000) / 100;
+}
+function setShelfSize(id, axis, value) {
+  const s = SHELF.get(id), col = s.col;
+  if (axis === 'width') {
+    S.settings.widths[col] = clamp(Math.round(value), 50, 200);
+    S.settings.widthAt[col] = Math.max(Date.now(), (S.settings.widthAt[col] || 0) + 1);
+  } else {
+    const regs = cabinetLevels(col, S.settings).filter(x => !x.top), i = regs.findIndex(x => x.id === id), lower = regs[i], upper = regs[i + 1];
+    if (!lower || !upper) return;
+    const end = clamp(lower.y + s.h * value / 100, lower.y + s.h / 2, upper.y + upper.h - SHELF.get(upper.id).h / 2);
+    S.settings.boards[col] = { ...boardPositions(col, S.settings), [id]: end };
+    S.settings.boardAt[col] = Math.max(Date.now(), (S.settings.boardAt[col] || 0) + 1);
+  }
+}
+function resetSizes() {
+  for (const c of LAYOUT) {
+    const first = SHELVES.find(s => s.col === c.id);
+    setShelfSize(first.id, 'width', 100);
+    S.settings.boards[c.id] = boardPositions(c.id, blank().settings);
+    S.settings.boardAt[c.id] = Math.max(Date.now(), (S.settings.boardAt[c.id] || 0) + 1);
+  }
+  save();
+  render();
+  toast(t('size.resetDone'));
+}
+function startSizeDrag(e, handle) {
+  const id = handle.dataset.s, axis = handle.dataset.resize, s = G.levels.get(id), cg = G.cols[s.col];
+  const start = shelfSize(id, axis), top = Math.max(...[...G.levels.values()].filter(x => x.col === s.col).map(x => x.y + x.h));
+  const frame = box('size-preview', { left: cg.x, top: G.yTop(axis === 'width' ? top : s.y + s.h), width: cg.w, height: (axis === 'width' ? top : s.h) * U });
+  const label = frame.appendChild(document.createElement('span'));
+  caseEl.appendChild(frame);
+  const upper = G.levels.get(s.col + (s.n + 1));
+  sizeDrag = { id, axis, start, value: start, min: 50,
+    max: axis === 'width' ? 200 : (s.h + upper.h - SHELF.get(upper.id).h / 2) / SHELF.get(id).h * 100,
+    pointerId: e.pointerId, x: e.clientX, y: e.clientY, z,
+    base: axis === 'width' ? cg.shelves[id] * 100 / start : SHELF.get(id).h * U,
+    bottom: G.yTop(s.y), frame, label };
+  label.textContent = t(axis === 'width' ? 'size.previewWidth' : 'size.previewHeight', { id: axis === 'width' ? s.col : id, n: start });
+  document.body.classList.add('resizing');
+  stage.setPointerCapture(e.pointerId);
+}
+function updateSizeDrag(e) {
+  const d = sizeDrag, delta = d.axis === 'width' ? e.clientX - d.x : d.y - e.clientY;
+  d.value = sizePercent(d.start, delta, d.base, d.z, d.min, d.max);
+  if (d.axis === 'width') d.frame.style.width = d.base * d.value / 100 + 'px';
+  else {
+    const h = d.base * d.value / 100;
+    d.frame.style.height = h + 'px';
+    d.frame.style.top = d.bottom - h + 'px';
+  }
+  d.label.textContent = t(d.axis === 'width' ? 'size.previewWidth' : 'size.previewHeight', { id: d.axis === 'width' ? SHELF.get(d.id).col : d.id, n: Math.round(d.value * 100) / 100 });
+}
+function endSizeDrag(commit) {
+  const d = sizeDrag;
+  if (!d) return;
+  sizeDrag = null;
+  d.frame.remove();
+  document.body.classList.remove('resizing');
+  if (stage.hasPointerCapture(d.pointerId)) stage.releasePointerCapture(d.pointerId);
+  suppressUntil = performance.now() + 400;
+  if (commit && d.value !== d.start) {
+    setShelfSize(d.id, d.axis, d.value);
+    save();
+    render();
+  }
+  if (syncDeferred) { syncDeferred = false; schedulePush(300); }
+}
+stage.addEventListener('keydown', e => {
+  const handle = editing && e.target.closest('[data-resize]');
+  if (!handle) return;
+  const axis = handle.dataset.resize, id = handle.dataset.s;
+  const step = { ArrowRight: 1, ArrowLeft: -1, ArrowUp: 1, ArrowDown: -1 }[e.key];
+  if (step == null && e.key !== 'Home') return;
+  e.preventDefault();
+  const value = shelfSize(id, axis);
+  setShelfSize(id, axis, e.key === 'Home' ? 100 : value + step * (e.shiftKey ? 10 : 1));
+  save();
+  render();
+  caseEl.querySelector(`[data-s="${id}"][data-resize="${axis}"]`).focus();
+});
 const marker = div('marker');
 stage.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  if (pinch || drag) return;
+  if (pinch || drag || sizeDrag) return;
+  const handle = editing && e.target.closest('[data-resize]');
+  if (handle) {
+    e.preventDefault();
+    startSizeDrag(e, handle);
+    return;
+  }
   const sp = e.target.closest('.spine, .gap');
   if (editing && sp && !e.target.closest('button')) {
     const touch = e.pointerType !== 'mouse', gap = sp.classList.contains('gap');
@@ -2430,6 +2665,11 @@ stage.addEventListener('pointerdown', e => {
   }
 });
 window.addEventListener('pointermove', e => {
+  if (sizeDrag && e.pointerId === sizeDrag.pointerId) {
+    e.preventDefault();
+    updateSizeDrag(e);
+    return;
+  }
   if (pan && e.pointerId === pan.id) {
     const dx = e.clientX - pan.x0, dy = e.clientY - pan.y0;
     if (!pan.moved && Math.hypot(dx, dy) > 4) { pan.moved = true; document.body.classList.add('panning'); }
@@ -2450,6 +2690,7 @@ window.addEventListener('pointermove', e => {
   updateTarget();
 }, { passive: false });
 window.addEventListener('pointerup', e => {
+  if (sizeDrag && e.pointerId === sizeDrag.pointerId) endSizeDrag(true);
   if (pan && e.pointerId === pan.id) {
     if (pan.moved) suppressUntil = performance.now() + 300;
     pan = null;
@@ -2458,8 +2699,12 @@ window.addEventListener('pointerup', e => {
   if (drag && e.pointerId === drag.id) endDrag(true);
 });
 window.addEventListener('pointercancel', e => {
+  if (sizeDrag && e.pointerId === sizeDrag.pointerId) endSizeDrag(false);
   if (pan && e.pointerId === pan.id) { pan = null; document.body.classList.remove('panning'); }
   if (drag && e.pointerId === drag.id) endDrag(false);
+});
+stage.addEventListener('lostpointercapture', e => {
+  if (sizeDrag && e.pointerId === sizeDrag.pointerId) endSizeDrag(false);
 });
 function cancelPending() {
   if (drag && !drag.on) { clearTimeout(drag.timer); drag = null; }
@@ -2576,6 +2821,7 @@ stage.addEventListener('click', e => {
   else if (selectedK) select(null);
 });
 function setEditing(on) {
+  if (!on && sizeDrag) endSizeDrag(false);
   editing = on;
   document.body.classList.toggle('editing', on);
   $('btnEdit').classList.toggle('on', on);
@@ -2588,6 +2834,7 @@ function setEditing(on) {
 }
 $('btnEdit').onclick = () => setEditing(!editing);
 $('editDone').onclick = () => setEditing(false);
+$('editResetSize').onclick = resetSizes;
 
 /* ---------- 待同步清单 ---------- */
 function syncItems() {
@@ -2725,6 +2972,7 @@ window.addEventListener('drop', e => {
 /* ---------- 另一个窗口改了数据 ---------- */
 window.addEventListener('storage', e => {
   if (e.key === LOCAL_KEY) { L = loadLocal(); renderSyncStatus(); return; }
+  if (e.key === STORE_KEY && sizeDrag) endSizeDrag(false);
   if (e.key !== STORE_KEY || drag) return;
   S = loadState();
   rebuildIndex();
@@ -2735,6 +2983,7 @@ window.addEventListener('storage', e => {
 
 /* ---------- 键盘 ---------- */
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && sizeDrag) { e.preventDefault(); endSizeDrag(false); return; }
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
   if (e.key === '/' && !typing) { e.preventDefault(); qEl.focus(); }
   else if (e.key === 'Escape' && !typing && !dlgMenu.open && !dlgSync.open) {
@@ -2759,12 +3008,32 @@ function mergeStates(a, b) {
   out.settings.langAt = la.settings.langAt;
   out.settings.genreEn = ge.settings.genreEn;
   out.settings.genreEnAt = ge.settings.genreEnAt;
+  for (const c of LAYOUT) {
+    const ta = a.settings.widthAt[c.id] || 0, tb = b.settings.widthAt[c.id] || 0;
+    const wa = a.settings.widths[c.id] || 100, wb = b.settings.widths[c.id] || 100;
+    const w = tb > ta ? wb : ta > tb ? wa : Math.max(wa, wb);
+    if (w !== 100 || ta || tb) out.settings.widths[c.id] = w;
+    if (ta || tb) out.settings.widthAt[c.id] = Math.max(ta, tb);
+    // 一个柜的隔板布局整体合并，避免把两台设备的相邻层高度拼成超高的柜子。
+    const ha = a.settings.boardAt[c.id] || 0, hb = b.settings.boardAt[c.id] || 0;
+    const va = a.settings.boards[c.id], vb = b.settings.boards[c.id];
+    const positions = hb > ha ? vb : ha > hb ? va : canon(vb || null) > canon(va || null) ? vb : va;
+    if (positions) out.settings.boards[c.id] = positions;
+    if (ha || hb) out.settings.boardAt[c.id] = Math.max(ha, hb);
+  }
   const keep = Date.now() - 180 * 864e5;   // 半年前的删除记录不用再留着
+  const books = new Map(out.books.map(book => [book.k, book]));
   for (const k of new Set([a, b].flatMap(x => [...Object.keys(x.moves), ...Object.keys(x.gone)]))) {
     let best = null, ts = -1;
     for (const x of [a, b]) {
       if (x.moves[k] && x.moves[k].at > ts) { best = x.moves[k]; ts = best.at; }
       if (x.gone[k] >= ts) { best = null; ts = x.gone[k]; }
+    }
+    // CSV 和移动记录来自不同设备时，也按重新导入的规则核对位置。
+    const book = books.get(k), loc = book && normLoc(book.loc);
+    if (best && (!book || loc === best.to || (SHELF.has(loc) && loc !== normLoc(best.from)))) {
+      best = null;
+      ts = Math.max(ts, at(src));
     }
     if (best) out.moves[k] = best;
     else if (ts > keep) out.gone[k] = ts;
@@ -2867,6 +3136,7 @@ async function pullOnce(c) {
 // 上传本机数据；云端在这期间被别的设备改过的话，先合并再传
 async function pushOnce(c) {
   for (let i = 0; i < 4; i++) {
+    const sent = canon(S);
     const body = {
       message: `更新书架（${DEVICE}）`,
       content: toB64(JSON.stringify({ app: 'vshelf', v: 2, device: DEVICE, savedAt: new Date().toISOString(), state: S }, replacer)),
@@ -2877,7 +3147,9 @@ async function pushOnce(c) {
       const j = await r.json();
       c.sha = j.content.sha;
       c.etag = null;
-      c.dirty = false;
+      // 等待上传期间可能又整理了书；只有发出的快照仍等于当前数据才算传完。
+      c.dirty = sent !== canon(S);
+      if (L.sync === c && c.dirty) schedulePush();
       return;
     }
     if (r.status !== 409 && r.status !== 422) throw ghError(r);
@@ -2888,6 +3160,7 @@ async function pushOnce(c) {
   throw syncError('gh.mergeFail');
 }
 function applyState(next, from) {
+  if (sizeDrag) endSizeDrag(false);
   const wasEmpty = !S.books.length;
   S = next;
   rebuildIndex();
@@ -2904,7 +3177,7 @@ function applyState(next, from) {
 async function doSync() {
   const c = L.sync;
   if (!c) return '';
-  if (drag && drag.on) { syncDeferred = true; return ''; }   // 拖书的时候先不动画面
+  if ((drag && drag.on) || sizeDrag) { syncDeferred = true; return ''; }   // 拖书或调尺寸时先不动画面
   lastSyncTry = Date.now();
   syncBusy = true;
   renderSyncStatus();

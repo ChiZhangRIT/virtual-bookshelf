@@ -1,6 +1,6 @@
 // 离线缓存：有网时取最新版本（网页 3 秒内没响应就先用缓存），没网时用缓存
-const CACHE = 'vshelf-v2';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
+const CACHE = 'vshelf-v3';
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-180.png?v=20261111', './icon-512.png?v=20261111'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
